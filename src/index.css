@@ -1,0 +1,279 @@
+/* =====================================================================
+ * 🌅 Sunset OS (Ghuroob OS) — Premium Design System CSS
+ * ===================================================================== */
+
+:root {
+  /* Harmonious Sunset Color Palette */
+  --sunset-orange: hsl(15, 95%, 60%);
+  --sunset-pink: hsl(340, 85%, 60%);
+  --sunset-purple: hsl(270, 70%, 45%);
+  --sunset-dusk: hsl(240, 45%, 15%);
+  --sunset-gold: hsl(40, 95%, 60%);
+  --greenery-light: hsl(135, 60%, 55%);
+  
+  /* Text and glassmorphism bases */
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-muted: rgba(255, 255, 255, 0.45);
+  
+  --glass-bg: rgba(25, 15, 40, 0.35);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.03);
+  --glass-shadow: rgba(0, 0, 0, 0.4);
+  
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Fira Code', 'Courier New', Courier, monospace;
+}
+
+/* Base resets & styling */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background-color: #0b0713;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
+
+/* Premium Glassmorphic Classes */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 var(--glass-shadow);
+  border-radius: 16px;
+  color: var(--text-primary);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+.glass-input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: white;
+  padding: 8px 12px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.glass-input:focus {
+  border-color: var(--sunset-orange);
+}
+
+.glass-button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: white;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-button:hover {
+  background: var(--sunset-orange);
+  border-color: var(--sunset-orange);
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
+  transform: scale(1.02);
+}
+
+.glass-button:active {
+  transform: scale(0.98);
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px 8px rgba(249, 115, 22, 0.6);
+  }
+}
+
+.microphone-pulse {
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes equalizer-dance {
+  0%, 100% { height: 4px; }
+  50% { height: 28px; }
+}
+
+.eq-bar {
+  width: 3px;
+  background-color: var(--sunset-gold);
+  border-radius: 2px;
+  display: inline-block;
+  animation: equalizer-dance 1.2s infinite ease-in-out;
+}
+
+.eq-bar:nth-child(2) { animation-delay: 0.15s; background-color: var(--sunset-orange); }
+.eq-bar:nth-child(3) { animation-delay: 0.3s; background-color: var(--sunset-pink); }
+.eq-bar:nth-child(4) { animation-delay: 0.45s; background-color: var(--sunset-purple); }
+.eq-bar:nth-child(5) { animation-delay: 0.07s; background-color: var(--sunset-gold); }
+
+/* Draggable Windows */
+.app-window {
+  position: absolute;
+  min-width: 320px;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 10;
+}
+
+.window-header {
+  height: 44px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  cursor: move;
+}
+
+.window-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.window-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.window-action-btn {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.window-action-btn:hover {
+  opacity: 0.8;
+}
+
+.window-btn-close { background-color: #ff5f56; }
+.window-btn-minimize { background-color: #ffbd2e; }
+.window-btn-maximize { background-color: #27c93f; }
+
+.window-body {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+/* Taskbar Styling */
+.taskbar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 64px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 999;
+}
+
+.taskbar-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: white;
+}
+
+.taskbar-icon:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-8px) scale(1.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.taskbar-icon.active::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--sunset-orange);
+  box-shadow: 0 0 8px var(--sunset-orange);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Boot loader typing log animation */
+.boot-loader-text {
+  animation: typing-appear 0.05s steps(40) forwards;
+}
+
+@keyframes typing-appear {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
