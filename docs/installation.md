@@ -14,7 +14,7 @@ NASM is the assembler that compiles your 16-bit and 32-bit x86 Assembly code (`.
 2. **Install**:
    - Run the downloaded `.exe` installer.
    - Choose **Install for anyone using this computer** or **Just for me**.
-   - Keep the default installation directory: `C:\Program Files\NASM` (or note down where it installs).
+   - Keep the default installation directory or select your custom path (on your system: `D:\NASM`).
    - Click through to complete the installation.
 
 ---
@@ -30,7 +30,7 @@ GCC compiles our C kernel files. MinGW-w64 provides GCC for Windows.
    - Extract the downloaded `.zip` file.
    - Move the extracted folder (named `mingw64`) directly to the root of your `C:` drive:
      `C:\mingw64`
-   - Your GCC compiler executables (like `gcc.exe` and `ld.exe`) will be inside `C:\mingw64\bin`.
+   - Your GCC compiler executables (like `gcc.exe` and `ld.exe`) will be inside `C:\mingw64\bin` (on your system: `D:\mingw64\mingw64\bin`).
 
 ---
 
@@ -43,7 +43,7 @@ QEMU simulates an x86 computer inside Windows, allowing us to safely boot our cu
    - Download the latest `.exe` installer (e.g., `qemu-w64-setup-xxxxxxxx.exe`).
 2. **Install**:
    - Run the installer.
-   - Keep the default installation path: `C:\Program Files\qemu`.
+   - Keep the default installation path or select your custom path (on your system: `D:\mingw64\qemu`).
    - Complete the setup wizard.
 
 ---
@@ -55,9 +55,9 @@ To run `nasm`, `gcc`, and `qemu-system-x86_64` directly from your VS Code termin
 2. In the System Properties window, click the **Environment Variables...** button at the bottom.
 3. Under the **User variables** (or **System variables** to apply to all users), locate the variable named `Path` and double-click it.
 4. Click the **New** button on the right and add the following paths one by one:
-   - `C:\Program Files\NASM`
-   - `C:\mingw64\bin`
-   - `C:\Program Files\qemu`
+   - `D:\NASM`
+   - `D:\mingw64\mingw64\bin`
+   - `D:\mingw64\qemu`
 5. Click **OK** on all open windows to save the changes.
 6. **Restart your terminal** or VS Code to apply the environment paths.
 

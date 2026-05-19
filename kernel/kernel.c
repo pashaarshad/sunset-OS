@@ -1,77 +1,163 @@
 /* =====================================================================
- * 🌅 Sunset OS (Ghuroob OS) — Laz Engine Kernel Core
+ * 🌅 Sunset OS (Ghuroob OS) — Laz Engine Kernel Core (Milestone 2)
  * File: kernel.c
  * Author: Arshad Pasha
- * Description: Low-level monolithic kernel entry in C.
- *              Directly interfaces with VGA video memory (0xB8000)
- *              to output text on screen without standard libraries.
+ * Description: Low-level 32-bit freestanding kernel containing
+ *              VGA display controls and an interactive Keyboard Driver.
  * ===================================================================== */
 
-// Define screen dimensions for VGA Text Mode
 #define SCREEN_WIDTH 80
 #define SCREEN_HEIGHT 25
 #define VGA_ADDRESS 0xB8000
 
-// Define custom sunset-themed text colors (VGA attribute formatting)
-#define COLOR_LIGHT_ORANGE 0x0E // Yellow/Light Orange text, Black background
-#define COLOR_DEEP_RED     0x0C // Light Red text, Black background
-#define COLOR_GREENERY     0x0A // Light Green text, Black background
-#define COLOR_DEFAULT      0x07 // Gray text, Black background
+// VGA color attributes matching the sunset aesthetic
+#define COLOR_LIGHT_ORANGE 0x0E // Yellow on Black
+#define COLOR_DEEP_RED     0x0C // Light Red on Black
+#define COLOR_GREENERY     0x0A // Light Green on Black
+#define COLOR_DEFAULT      0x07 // Gray on Black
+
+// State variables tracking cursor position
+int cursor_row = 0;
+int cursor_col = 0;
+
+// Scancode to US Keyboard ASCII lookup mapping array
+const char scancode_to_ascii[] = {
+    0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
+    '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
+    0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0, '\\',
+    'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' '
+};
 
 // Function declarations
+unsigned char inb(unsigned short port);
+void outb(unsigned short port, unsigned char data);
 void clear_screen(char color_attrib);
-void print_string(const char* str, int row, int col, char color_attrib);
+void print_char(char c, char color_attrib);
+void print_string(const char* str, char color_attrib);
+void handle_keyboard_input();
 
 /* =====================================================================
  * KERNEL MAIN ENTRY POINT
  * ===================================================================== */
 void kernel_main() {
-    // 1. Initialize screen - Clear all characters with black backgrounds
+    // 1. Reset VGA display
     clear_screen(COLOR_DEFAULT);
 
-    // 2. Render a gorgeous, calm nature-themed ASCII layout
-    print_string("*************************************************", 2, 15, COLOR_LIGHT_ORANGE);
-    print_string("*       🌅 Welcome to Sunset OS (Ghuroob OS) 🌅   *", 3, 15, COLOR_LIGHT_ORANGE);
-    print_string("*              Laz Engine Kernel v0.1           *", 4, 15, COLOR_DEEP_RED);
-    print_string("*************************************************", 5, 15, COLOR_LIGHT_ORANGE);
+    // 2. Render welcome headers
+    print_string("********************************************************************************\n", COLOR_LIGHT_ORANGE);
+    print_string("*                    🌅 Welcome to Sunset OS (Ghuroob OS) 🌅                   *\n", COLOR_LIGHT_ORANGE);
+    print_string("*                    Stage 2 Core: Laz Engine 32-bit Kernel                     *\n", COLOR_DEEP_RED);
+    print_string("********************************************************************************\n\n", COLOR_LIGHT_ORANGE);
 
-    // 3. Output boot metrics
-    print_string("[OK] Laz Engine initialized in 32-bit Protected Mode.", 8, 10, COLOR_GREENERY);
-    print_string("[OK] System Stack loaded at physical offset 0x9000.", 9, 10, COLOR_DEFAULT);
-    print_string("[OK] Hardware Interfacing Status: CALM & STABLE.", 10, 10, COLOR_DEFAULT);
-    print_string("[OK] Smart Loading Cache activated.", 11, 10, COLOR_GREENERY);
+    print_string("[OK] Laz Engine transitioned to 32-bit Protected Mode successfully.\n", COLOR_GREENERY);
+    print_string("[OK] Polling keyboard controller driver active.\n", COLOR_GREENERY);
+    print_string("[OK] Flat physical RAM address space mapped.\n\n", COLOR_DEFAULT);
+    
+    print_string("================================================================================\n", COLOR_DEEP_RED);
+    print_string("Sunset Interactive Shell Console. Start typing below:\n", COLOR_LIGHT_ORANGE);
+    print_string("sunset-OS:~$ ", COLOR_GREENERY);
 
-    // 4. Instructional prompt
-    print_string("You have successfully reached Milestone 2.", 14, 15, COLOR_LIGHT_ORANGE);
-    print_string("Standing by for user commands...", 15, 15, COLOR_DEFAULT);
-
-    // 5. Enter CPU halt loop
+    // 3. Keep listening for keyboard interrupts/polling
     while(1) {
-        // Keep CPU running safely in Ring 0
+        handle_keyboard_input();
     }
 }
 
 /* =====================================================================
- * VGA CONSOLE UTILITIES
+ * LOW LEVEL HARDWARE I/O PORT WRAPPERS
  * ===================================================================== */
 
-// clear_screen: Clears all VGA characters with spaces and sets background attribute
-void clear_screen(char color_attrib) {
-    char* video_memory = (char*)VGA_ADDRESS;
-    for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
-        video_memory[i * 2] = ' ';           // Set text character to space
-        video_memory[i * 2 + 1] = color_attrib; // Set attribute byte (color)
+// inb: Reads a byte from the specified CPU I/O port address
+unsigned char inb(unsigned short port) {
+    unsigned char result;
+    __asm__ volatile("in %%dx, %%al" : "=a" (result) : "d" (port));
+    return result;
+}
+
+// outb: Writes a byte to the specified CPU I/O port address
+void outb(unsigned short port, unsigned char data) {
+    __asm__ volatile("out %%al, %%dx" : : "a" (data), "d" (port));
+}
+
+/* =====================================================================
+ * INTERACTIVE KEYBOARD CONTROLLER DRIVER
+ * ===================================================================== */
+void handle_keyboard_input() {
+    // Port 0x64 is the Status Register of the keyboard controller
+    // Bit 0 (Output Buffer Full) is set to 1 when a key byte is available
+    if (inb(0x64) & 0x01) {
+        // Read raw scan code byte from Port 0x60
+        unsigned char scancode = inb(0x60);
+        
+        // If Bit 7 is clear (scancode < 0x80), it means the key is pressed (Key Down)
+        if (scancode < 0x80) {
+            char ascii = scancode_to_ascii[scancode];
+            
+            if (ascii != 0) {
+                // If it is backspace
+                if (ascii == '\b') {
+                    if (cursor_col > 12) { // Restrict deleting the shell prompt "sunset-OS:~$ "
+                        cursor_col--;
+                        print_char(' ', COLOR_DEFAULT);
+                        cursor_col--; // Move back after writing a space
+                    }
+                } 
+                // If it is Enter
+                else if (ascii == '\n') {
+                    print_char('\n', COLOR_DEFAULT);
+                    print_string("sunset-OS:~$ ", COLOR_GREENERY);
+                } 
+                // Any regular character
+                else {
+                    print_char(ascii, COLOR_DEFAULT);
+                }
+            }
+        }
     }
 }
 
-// print_string: Prints a null-terminated string at a specific row and column
-void print_string(const char* str, int row, int col, char color_attrib) {
+/* =====================================================================
+ * VGA VIDEO DRIVER IMPLEMENTATION
+ * ===================================================================== */
+void clear_screen(char color_attrib) {
     char* video_memory = (char*)VGA_ADDRESS;
-    int offset = (row * SCREEN_WIDTH + col) * 2; // Calculate offset in VGA memory
+    for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
+        video_memory[i * 2] = ' ';
+        video_memory[i * 2 + 1] = color_attrib;
+    }
+    cursor_row = 0;
+    cursor_col = 0;
+}
 
+void print_char(char c, char color_attrib) {
+    char* video_memory = (char*)VGA_ADDRESS;
+    
+    // Handle newline character
+    if (c == '\n') {
+        cursor_col = 0;
+        cursor_row++;
+        if (cursor_row >= SCREEN_HEIGHT) {
+            clear_screen(COLOR_DEFAULT);
+        }
+        return;
+    }
+
+    int offset = (cursor_row * SCREEN_WIDTH + cursor_col) * 2;
+    video_memory[offset] = c;
+    video_memory[offset + 1] = color_attrib;
+    
+    cursor_col++;
+    if (cursor_col >= SCREEN_WIDTH) {
+        cursor_col = 0;
+        cursor_row++;
+        if (cursor_row >= SCREEN_HEIGHT) {
+            clear_screen(COLOR_DEFAULT);
+        }
+    }
+}
+
+void print_string(const char* str, char color_attrib) {
     for (int i = 0; str[i] != '\0'; i++) {
-        video_memory[offset] = str[i];           // ASCII value
-        video_memory[offset + 1] = color_attrib;   // Color attribute
-        offset += 2;                             // Move to next screen cell (2 bytes)
+        print_char(str[i], color_attrib);
     }
 }
