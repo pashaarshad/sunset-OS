@@ -20,9 +20,9 @@ Every design decision, system driver, and application written for Sunset OS must
 
 ---
 
-## ⚡ The Laz Engine Philosophy
+## ⚡ The LAZ Kernel Philosophy
 
-The heart of the Sunset OS kernel is the **Laz Engine**. The engine is built around a unique architecture that challenges heavy modern kernels:
+The heart of Sunset OS is the **LAZ Kernel**. The kernel is built around a unique architecture that challenges heavy modern kernels:
 
 * **Smart Task Loading**: Applications are loaded predictive-style, pre-fetching blocks based on user habits to avoid standard disk I/O bottlenecks.
 * **Minimal CPU Footprint**: Keeps thread scheduling tight, placing the CPU in low-power idle states unless performing active work.
@@ -37,7 +37,7 @@ To maintain focus and organization, Sunset OS development is divided into struct
 
 ### 📦 Sunset OS v0.1 — Stage 1: Foundation (Current)
 * **AP Bootloader**: Custom 16-bit boot sector loading raw code.
-* **Laz Kernel**: VGA Text Mode screen driver, color rendering, and screen messages.
+* **LAZ Kernel**: VGA Text Mode screen driver, color rendering, and screen messages.
 * **First boot**: Boots in emulator displaying: `"Welcome to Sunset OS"`.
 
 ### 📦 Sunset OS v0.2 — Stage 2: Driver & File Essentials
@@ -65,7 +65,7 @@ To maintain focus and organization, Sunset OS development is divided into struct
 ```text
 /sunset-OS
 ├── bootloader/       # AP Bootloader assembly source code
-├── kernel/           # Laz Engine C kernel source code
+├── kernel/           # LAZ Kernel C source code
 ├── research/         # Engineering notes, CPU architectures, and design logs
 ├── devlogs/          # Daily developer logs and learning logs
 ├── tools/            # Compiling scripts, configurations, and build recipes

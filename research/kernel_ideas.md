@@ -1,6 +1,6 @@
-# Sunset OS Research — Laz Kernel Design Ideas
+# Sunset OS Research — LAZ Kernel Design Ideas
 
-The **Laz Engine** represents our vision for a custom, highly optimized, and smart kernel. This document tracks our design strategies, architectural choices, and the low-level graphics techniques required to display the system.
+The **LAZ Kernel** represents our vision for a custom, highly optimized, and smart kernel. This document tracks our design strategies, architectural choices, and the low-level graphics techniques required to display the system.
 
 ---
 

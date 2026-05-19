@@ -3,7 +3,7 @@
 * **Date**: May 20, 2026
 * **Author**: Arshad Pasha / Developer Team
 * **Stage**: Stage 1 — Foundation Architect
-* **Current Milestone**: Sunset OS v0.1 (AP Bootloader & Laz Kernel Core)
+* **Current Milestone**: Sunset OS v0.1 (AP Bootloader & LAZ Kernel Core)
 
 ---
 
@@ -11,7 +11,7 @@
 Today marks the official launch and freeze of the Sunset OS (Ghuroob OS) design philosophy, folder organization, and core specifications. We established a clean repository layout and prepared detailed low-level research files. We also created a manual compiler installation guide so we can prepare our Windows development system step-by-step.
 
 ### 🌟 What Worked
-- **Philosophy Defined**: Solidified the unique "Rules of Sunset OS" and the "Laz Engine Philosophy" regarding smart predictive loading.
+- **Philosophy Defined**: Solidified the unique "Rules of Sunset OS" and the "LAZ Kernel Philosophy" regarding smart predictive loading.
 - **Repository Standardized**: Formulated the clear directory tree: `/bootloader`, `/kernel`, `/research`, `/devlogs`, `/tools`, `/docs`, `/src`.
 - **Educational Library Complete**: Written comprehensive research guides inside the `/research` folder:
   - `cpu_architecture.md`: Registers, CPU modes, protection rings.

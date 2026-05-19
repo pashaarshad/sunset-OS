@@ -167,7 +167,7 @@ init_pm:
 ; =====================================================================
 BOOT_DRIVE    db 0           ; Store boot drive number here
 msg_loading   db '🌅 [AP Bootloader v0.1] Initiated...', 13, 10, 0
-msg_disk      db '[*] Loading Laz Engine kernel from drive...', 13, 10, 0
+msg_disk      db '[*] Loading LAZ Kernel from drive...', 13, 10, 0
 msg_disk_ok   db '[+] Disk load successful! Launching Protected Mode...', 13, 10, 0
 msg_disk_fail db '[FATAL] Disk sector read failed. System halted.', 13, 10, 0
 

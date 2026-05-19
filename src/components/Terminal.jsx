@@ -129,7 +129,7 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           { text: " 🌅        🌅    ----------------------", type: "logo" },
           { text: "🌅  🌄  🌅  🌅   Host: Arshad Pasha Custom PC", type: "logo" },
           { text: "🌅    🌅    🌅   OS Name: Sunset OS v0.1 (Stage 1)", type: "logo" },
-          { text: " 🌅        🌅    Kernel Core: Laz Engine v0.1 (Ring 0)", type: "logo" },
+          { text: " 🌅        🌅    Kernel Core: LAZ Kernel v0.1 (Ring 0)", type: "logo" },
           { text: "   🌅🌅🌅🌅      Shell: SunsetSH (Terminal Console)", type: "logo" },
           { text: "                 RAM Usage: 14 MB / 8192 MB (0.1%)", type: "logo" },
           { text: "                 Design Ethos: Calm, Lightweight, Intelligent", type: "logo" }
@@ -189,7 +189,7 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           className="absolute inset-0 bg-black text-emerald-500 font-mono flex flex-col justify-center items-center cursor-pointer select-none z-50 p-6 overflow-hidden"
         >
           <div className="animate-pulse mb-4 text-center">
-            <h3 className="text-sm font-bold text-white mb-1">LAZ ENGINE HARDWARE DIAGNOSTICS</h3>
+            <h3 className="text-sm font-bold text-white mb-1">LAZ KERNEL HARDWARE DIAGNOSTICS</h3>
             <p className="text-[10px] text-white/50">Click screen to exit Matrix overlay</p>
           </div>
           <div className="w-full max-w-md h-40 opacity-80 overflow-hidden leading-normal border border-emerald-900 rounded-lg p-3 bg-black/80 flex flex-col gap-1">

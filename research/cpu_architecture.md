@@ -53,7 +53,7 @@ x86 CPUs implement 4 privilege rings, although modern operating systems primaril
        │ │ ┌────────────────┐ │ │
        │ │ │ Ring 1: Drivers│ │ │
        │ │ │ ┌────────────┐ │ │ │
-       │ │ │ │   Ring 0:  │ │ │ │  <-- Most Privileged (Laz Kernel - Direct CPU/Hardware access)
+│ │ │ │   Ring 0:  │ │ │ │  <-- Most Privileged (LAZ Kernel - Direct CPU/Hardware access)
        │ │ │ │   Kernel   │ │ │ │
        │ │ │ └────────────┘ │ │ │
        │ │ └────────────────┘ │ │
@@ -61,4 +61,4 @@ x86 CPUs implement 4 privilege rings, although modern operating systems primaril
        └────────────────────────┘
 ```
 
-Sunset OS boots into **Ring 0**, granting the **Laz Kernel** total control over physical memory, disk access, and external peripherals.
+Sunset OS boots into **Ring 0**, granting the **LAZ Kernel** total control over physical memory, disk access, and external peripherals.

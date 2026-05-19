@@ -2,7 +2,7 @@
 
 We will build the foundation for **Sunset OS** (Ghuroob OS). Because compiling low-level operating system code requires a specialized toolchain (NASM, GCC, QEMU), we will deliver a **dual-track codebase**:
 
-1. **The Real Low-Level OS Foundation**: Complete, compile-ready assembly and C source files for the **AP Bootloader** and **Laz Engine Kernel** structured exactly as outlined in the roadmap, accompanied by an automated environment setup and build suite for Windows.
+1. **The Real Low-Level OS Foundation**: Complete, compile-ready assembly and C source files for the **AP Bootloader** and **LAZ Kernel** structured exactly as outlined in the roadmap, accompanied by an automated environment setup and build suite for Windows.
 2. **The Interactive Web Simulator & OS Dashboard**: A gorgeous, ultra-premium web application styled with vibrant sunset gradients, glassmorphism, and smooth animations that simulates the booted Sunset OS environment directly in the browser. It will feature a fully functional file system, media player, text editor, terminal, and a **Web-Speech AI Voice Assistant** (Ghuroob Voice) that responds to voice commands!
 
 ---
@@ -32,9 +32,9 @@ We will create the raw x86 assembly and C kernel source code files.
 * Jumps to the kernel entry point.
 
 #### [NEW] [kernel.c](file:///d:/sunset-OS/kernel/kernel.c)
-* The entry point of the **Laz Engine Kernel** written in C.
+* The entry point of the **LAZ Kernel** written in C.
 * Implements a basic VGA screen driver to write characters to memory address `0xB8000` (text mode).
-* Displays a gorgeous, multi-colored startup screen: `"Welcome to Sunset OS (Ghuroob OS) - Laz Engine v0.1"`.
+* Displays a gorgeous, multi-colored startup screen: `"Welcome to Sunset OS (Ghuroob OS) - LAZ Kernel v0.1"`.
 * Implements a simple keyboard listener via I/O ports (`0x60`) and displays keypresses on screen.
 
 #### [NEW] [linker.ld](file:///d:/sunset-OS/kernel/linker.ld)
@@ -64,7 +64,7 @@ We will bootstrap a Vite + React web application in the root directory to delive
 
 #### [NEW] [src/App.jsx](file:///d:/sunset-OS/src/App.jsx)
 * The main desktop layout, taskbar, boot sequence simulator, and application manager.
-* **Boot Sequence**: Simulates the AP Bootloader loading the Laz Engine kernel with realistic boot messages before fading into the gorgeous desktop.
+* **Boot Sequence**: Simulates the AP Bootloader loading the LAZ Kernel with realistic boot messages before fading into the gorgeous desktop.
 * **Ambient Soundscape**: An automatic background music loop playing calming nature/sunset lofi tracks.
 
 #### [NEW] [src/components/FileManager.jsx](file:///d:/sunset-OS/src/components/FileManager.jsx)

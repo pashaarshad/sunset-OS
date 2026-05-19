@@ -43,7 +43,7 @@ export default function MediaSuite({ initialTab = 'image', initialFileId = null 
   const lofiTracks = [
     { name: "Sunset Reflections", artist: "Ghuroob Lo-Fi", length: "03:00" },
     { name: "AP Bootloader Beats", artist: "Kernel Beats", length: "02:45" },
-    { name: "Laz Engine Calmness", artist: "Ambient Nature", length: "04:15" }
+    { name: "LAZ Kernel Calmness", artist: "Ambient Nature", length: "04:15" }
   ];
 
   const formatTime = (secs) => {

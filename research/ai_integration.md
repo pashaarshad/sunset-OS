@@ -33,7 +33,7 @@ Once speech is converted to text, it passes through a parser. For v0.4, a rule-b
 ---
 
 ## 🧠 2. Context-Aware Predictive Memory
-The "smart loading" aspect of the Laz Engine tracks user behaviors over time.
+The "smart loading" aspect of the LAZ Kernel tracks user behaviors over time.
 - **Activity Logs**: Keeps a secure local queue of the last 20 actions (files edited, times opened, music tracks played).
-- **Time-of-day Weighting**: Sunset OS tracks when specific files are opened. If you edit `notes.txt` every evening at sunset, the Laz Engine pre-fetches the file sectors into system RAM cache cache as twilight approaches, reducing disk load latency to 0ms when you open it.
+- **Time-of-day Weighting**: Sunset OS tracks when specific files are opened. If you edit `notes.txt` every evening at sunset, the LAZ Kernel pre-fetches the file sectors into system RAM cache cache as twilight approaches, reducing disk load latency to 0ms when you open it.
 - **Ambient Adaptation**: The system tracks noise levels or ambient lighting. If dark, it transitions the desktop seamlessly into dark, relaxing red-dusk gradients.

@@ -52,6 +52,6 @@ In `bootloader.asm`, we will set up the stack safely away from our code (e.g., s
 ---
 
 ## 🚀 4. Protected Mode & Paging (Sunset OS v0.2 Plan)
-In v0.2, the **Laz Engine** will enable virtual memory by:
+In v0.2, the **LAZ Kernel** will enable virtual memory by:
 1. **Setting up the GDT (Global Descriptor Table)**: Defines memory segments spanning the entire 4GB address space to eliminate the 16-bit segmented limits.
 2. **Paging**: Divides memory into small **4KB pages**. The kernel maps these virtual pages to physical blocks in RAM, protecting user applications from accessing kernel memory space and enabling smooth task switching.

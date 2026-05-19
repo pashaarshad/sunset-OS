@@ -8,7 +8,7 @@
 ---
 
 ## 📅 Summary of Today's Work
-We successfully achieved a monumental transition: moving from 16-bit Real Mode into **32-bit Protected Mode** with a custom **Global Descriptor Table (GDT)**, loading our freestanding flat-binary **Laz Engine C Kernel** from raw disk sectors into physical memory at `0x1000`, and implementing a polling-based **Interactive Keyboard Driver** that maps hardware key interrupts to VGA character rendering!
+We successfully achieved a monumental transition: moving from 16-bit Real Mode into **32-bit Protected Mode** with a custom **Global Descriptor Table (GDT)**, loading our freestanding flat-binary **LAZ Kernel** from raw disk sectors into physical memory at `0x1000`, and implementing a polling-based **Interactive Keyboard Driver** that maps hardware key interrupts to VGA character rendering!
 
 ### 🌟 What Worked
 - **AP Bootloader Upgrade**:

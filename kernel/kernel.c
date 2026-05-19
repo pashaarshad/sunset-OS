@@ -1,5 +1,5 @@
 /* =====================================================================
- * 🌅 Sunset OS (Ghuroob OS) — Laz Engine Kernel Core (Milestone 2)
+ * 🌅 Sunset OS (Ghuroob OS) — LAZ Kernel Core (Milestone 2)
  * File: kernel.c
  * Author: Arshad Pasha
  * Description: Low-level 32-bit freestanding kernel containing
@@ -46,10 +46,10 @@ void kernel_main() {
     // 2. Render welcome headers
     print_string("********************************************************************************\n", COLOR_LIGHT_ORANGE);
     print_string("*                    🌅 Welcome to Sunset OS (Ghuroob OS) 🌅                   *\n", COLOR_LIGHT_ORANGE);
-    print_string("*                    Stage 2 Core: Laz Engine 32-bit Kernel                     *\n", COLOR_DEEP_RED);
+    print_string("*                    Stage 2: LAZ Kernel 32-bit Core                            *\n", COLOR_DEEP_RED);
     print_string("********************************************************************************\n\n", COLOR_LIGHT_ORANGE);
 
-    print_string("[OK] Laz Engine transitioned to 32-bit Protected Mode successfully.\n", COLOR_GREENERY);
+    print_string("[OK] LAZ Kernel transitioned to 32-bit Protected Mode successfully.\n", COLOR_GREENERY);
     print_string("[OK] Polling keyboard controller driver active.\n", COLOR_GREENERY);
     print_string("[OK] Flat physical RAM address space mapped.\n\n", COLOR_DEFAULT);
     

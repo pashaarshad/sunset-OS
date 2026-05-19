@@ -55,9 +55,9 @@ export default function App() {
       "BIOS check physical sector... OK (0x7C00)",
       "Standard registers AX/BX/CX/DX loaded... OK",
       "Switching CPU mode to Real Mode... Done",
-      "Bootloader: Reading sector 2 for Laz Engine kernel...",
-      "AP Bootloader: Transferring control to Laz Engine...",
-      "Laz Kernel v0.1: Booting successfully in Ring 0...",
+      "Bootloader: Reading sector 2 for LAZ Kernel...",
+      "AP Bootloader: Transferring control to LAZ Kernel...",
+      "LAZ Kernel v0.1: Booting successfully in Ring 0...",
       "GDT loaded at address 0x000100... OK",
       "Initializing physical memory map...",
       "Configuring VGA buffer at 0xB8000... Done",
@@ -263,7 +263,7 @@ export default function App() {
           <span className="h-3 w-px bg-white/10"></span>
           <div className="flex items-center gap-1 opacity-70">
             <Cpu className="w-3.5 h-3.5" />
-            <span>Laz Core</span>
+            <span>LAZ Kernel</span>
           </div>
         </div>
 
