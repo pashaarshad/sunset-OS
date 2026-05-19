@@ -39,14 +39,19 @@ We successfully achieved a monumental transition: moving from 16-bit Real Mode i
 2. **GDT Structure**: Understanding the segment descriptors, base addresses, limits, access bytes, and granularity bits. A flat memory model sets the segment base to `0x0` and limit to `0xFFFFF` with 4KB granularity to allow code and data access to all 4GB of physical address space.
 3. **Hardware Port I/O**: Interfacing directly with the keyboard controller 8042 chip via CPU registers. Reading Status Register at `0x64` to verify if a new key has arrived (Bit 0 set) before reading the Scancode data byte from Port `0x60`.
 4. **Binary Padding**: A 1.44MB floppy disk image must be fully sized to allow standard BIOS sector loading. If the floppy file size is truncated, BIOS read interrupts return errors when trying to fetch sectors past the end of the file.
+5. **BIOS Boot Drive Preservation**: The BIOS passes the boot drive identifier (e.g. `0x00` or `0x80`) in the `DL` register. Standard video interrupts like `int 0x10` (e.g., clearing the screen) overwrite `DL`. Saving `DL` immediately into a memory variable before calling screen functions and restoring it before `int 0x13` is vital to prevent disk loading errors!
 
 ---
 
 ## ❌ Failures & Blocks
-- **Disk Sector Read Error in QEMU**:
+- **QEMU Disk Sector Read Error - File Size**:
   - *Problem*: BIOS reported fatal disk error while trying to read 35 sectors.
   - *Cause*: The combined raw binary image was only 12.8 KB (25 sectors). BIOS tried to read 35 sectors, and the read request failed because the file size was too small.
   - *Resolution*: Updated the PowerShell build script `tools/build.ps1` to automatically instantiate a 1.44MB byte buffer (1,474,560 bytes) initialized to zero, copy the bootloader and kernel into it, and write the padded image file.
+- **QEMU Disk Sector Read Error - DL Register Corruption**:
+  - *Problem*: Even with a 1.44MB floppy disk size, the BIOS sector read failed on some configurations.
+  - *Cause*: The BIOS screen-clear interrupt `int 0x10` corrupted the `DL` register (holding screen columns or state) before we read the disk. Thus, the BIOS tried to read from an invalid drive ID (e.g., `0x4F` instead of the boot drive `0x00`).
+  - *Resolution*: Upgraded `bootloader.asm` to save `DL` immediately into a `BOOT_DRIVE` variable in RAM after setting up the stack, and then move `[BOOT_DRIVE]` back into `DL` right before invoking `int 0x13`.
 - **Port 3000 In Use**:
   - *Problem*: Vite reported Port 3000 in use and defaulted to Port 3001.
   - *Resolution*: Perfect, Vite handled the port mapping dynamically, serving the simulator interface flawlessly on `http://localhost:3001`.

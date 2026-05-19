@@ -22,6 +22,9 @@ start:
     mov sp, bp
     sti
 
+    ; Save the boot drive number passed in DL by BIOS
+    mov [BOOT_DRIVE], dl
+
     ; 2. Clear screen and print loading notice
     mov ah, 0x06
     mov al, 0
@@ -84,6 +87,7 @@ load_kernel:
     mov ch, 0         ; Cylinder 0
     mov dh, 0         ; Head 0
     mov cl, 2         ; Start reading at sector 2 (immediately after boot sector)
+    mov dl, [BOOT_DRIVE] ; Use the saved boot drive number
     mov bx, KERNEL_OFFSET ; Destination address: ES:BX = 0x0000:0x1000
     int 0x13
     jc disk_error     ; Jump if carry flag set (disk read failed)
@@ -161,6 +165,7 @@ init_pm:
 ; =====================================================================
 ; BOOT SECTOR DATA
 ; =====================================================================
+BOOT_DRIVE    db 0           ; Store boot drive number here
 msg_loading   db '🌅 [AP Bootloader v0.1] Initiated...', 13, 10, 0
 msg_disk      db '[*] Loading Laz Engine kernel from drive...', 13, 10, 0
 msg_disk_ok   db '[+] Disk load successful! Launching Protected Mode...', 13, 10, 0
