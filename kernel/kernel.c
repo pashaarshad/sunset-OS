@@ -10,6 +10,7 @@
 #include "font.h"
 #include "mouse.h"
 #include "window.h"
+#include "sound.h"
 
 // Scancode to US Keyboard ASCII mapping array (32-bit flat compatible)
 static const char scancode_to_ascii[] = {
@@ -22,6 +23,10 @@ static const char scancode_to_ascii[] = {
 // Global interactive shell buffer states
 static char shell_buffer[256];
 static int shell_len = 0;
+
+// Context memory history buffer
+static char cmd_history[5][32];
+static int history_count = 0;
 
 static void clear_shell() {
     memset(shell_buffer, 0, 256);
@@ -62,7 +67,10 @@ void kernel_main(unsigned int* vesa_framebuffer) {
     // 3. Initialize auxiliary hardware Mouse driver
     init_mouse();
 
-    // 4. Set up interactive windows
+    // 4. Play the serene ascending welcome melody chime
+    play_startup_chime();
+
+    // 5. Set up interactive windows
     Window win_diag;
     Window win_notes;
     Window win_shell;
@@ -149,15 +157,60 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                             cmd[cmd_idx++] = shell_buffer[k];
                         }
                         cmd[cmd_idx] = '\0';
+
+                        // Save non-empty commands to history log
+                        if (cmd_idx > 0 && cmd_idx < 30) {
+                            memcpy(cmd_history[history_count % 5], cmd, cmd_idx);
+                            cmd_history[history_count % 5][cmd_idx] = '\0';
+                            history_count++;
+                        }
                         
                         // Process shell commands
                         if (cmd_idx == 0) {
                             append_to_shell("\nsunset-OS:~$ ");
                         } else if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
-                            append_to_shell("\nCommands: help, clear, ambient, panic");
+                            append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history");
                             append_to_shell("\nsunset-OS:~$ ");
                         } else if (cmd[0] == 'c' && cmd[1] == 'l' && cmd[2] == 'e' && cmd[3] == 'a' && cmd[4] == 'r') {
                             clear_shell();
+                        } else if (cmd[0] == 'c' && cmd[1] == 'h' && cmd[2] == 'i' && cmd[3] == 'm' && cmd[4] == 'e') {
+                            append_to_shell("\nReplaying serene welcome chime...");
+                            play_startup_chime();
+                            append_to_shell("\nsunset-OS:~$ ");
+                        } else if (cmd[0] == 'p' && cmd[1] == 'l' && cmd[2] == 'a' && cmd[3] == 'y') {
+                            // play [freq] [ms]
+                            int idx = 5;
+                            unsigned int freq = 0;
+                            unsigned int ms = 0;
+                            while (cmd[idx] >= '0' && cmd[idx] <= '9') {
+                                freq = freq * 10 + (cmd[idx] - '0');
+                                idx++;
+                            }
+                            if (cmd[idx] == ' ') idx++;
+                            while (cmd[idx] >= '0' && cmd[idx] <= '9') {
+                                ms = ms * 10 + (cmd[idx] - '0');
+                                idx++;
+                            }
+                            if (freq > 0 && ms > 0) {
+                                play_tone(freq);
+                                sleep_ms(ms);
+                                stop_tone();
+                                append_to_shell("\nTone played successfully.");
+                            } else {
+                                append_to_shell("\nUsage: play [freq_hz] [duration_ms]\nExample: play 440 200");
+                            }
+                            append_to_shell("\nsunset-OS:~$ ");
+                        } else if (cmd[0] == 'a' && cmd[1] == 'b' && cmd[2] == 'o' && cmd[3] == 'u' && cmd[4] == 't') {
+                            append_to_shell("\nSUNSET OS naming philosophy:\nInspired by daily sunset walks between Asr and Maghrib.\nA restorative time that refreshes, motivates, and inspires.\nDesigned for serene focus.");
+                            append_to_shell("\nsunset-OS:~$ ");
+                        } else if (cmd[0] == 'h' && cmd[1] == 'i' && cmd[2] == 's' && cmd[3] == 't' && cmd[4] == 'o' && cmd[5] == 'r' && cmd[6] == 'y') {
+                            append_to_shell("\nRecent Command History Logs:");
+                            int start = (history_count > 5) ? (history_count - 5) : 0;
+                            for (int h = start; h < history_count; h++) {
+                                append_to_shell("\n- ");
+                                append_to_shell(cmd_history[h % 5]);
+                            }
+                            append_to_shell("\nsunset-OS:~$ ");
                         } else if (cmd[0] == 'a' && cmd[1] == 'm' && cmd[2] == 'b' && cmd[3] == 'i' && cmd[4] == 'e' && cmd[5] == 'n' && cmd[6] == 't') {
                             append_to_shell("\nInitiating breathing Ambient OS Mode...");
                             is_ambient = 1;

@@ -8,12 +8,59 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
   ]);
   const [input, setInput] = useState('');
   const [isMatrixActive, setIsMatrixActive] = useState(false);
+  const [cmdHistoryList, setCmdHistoryList] = useState([]);
   const terminalEndRef = useRef(null);
 
   // Auto scroll to bottom of logs
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history]);
+
+  // Audio key tick synthesizer
+  const playTick = () => {
+    if (typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1600, ctx.currentTime);
+      
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.015, ctx.currentTime + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.025);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.025);
+    }
+  };
+
+  // Audio command completion feedback
+  const playCmdChime = (success = true) => {
+    if (typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(success ? 880 : 330, ctx.currentTime);
+      
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    }
+  };
 
   // Handler for custom local virtual filesystem changes
   const getFilesList = () => {
@@ -29,6 +76,9 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
     const args = parts.slice(1);
 
     const newHistory = [...history, { text: `sunset-OS:~$ ${trimmed}`, type: "input" }];
+    
+    // Save to cmd history list
+    setCmdHistoryList(prev => [...prev, trimmed]);
 
     switch (command) {
       case 'help':
@@ -39,12 +89,93 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           { text: "  cat [file]  - Display contents of a text file.", type: "text" },
           { text: "  create [file] [msg] - Create a text file with message.", type: "text" },
           { text: "  rm [file]   - Remove/Delete a file.", type: "text" },
+          { text: "  chime       - Replay hardware-level PIT startup melody.", type: "text" },
+          { text: "  play [f] [t]- Play a customized square tone frequency in Hz.", type: "text" },
+          { text: "  about       - Discover the Sunset OS naming story.", type: "text" },
+          { text: "  history     - View terminal session command history log.", type: "text" },
           { text: "  neofetch    - Display operating system parameters.", type: "text" },
           { text: "  theme [name]- Change color theme (sunset, greenery, dusk).", type: "text" },
           { text: "  voice       - Trigger the AI Voice Assistant window.", type: "text" },
           { text: "  matrix      - Activate green-rain console diagnostic overlay.", type: "text" },
           { text: "  clear       - Clear screen logs.", type: "text" }
         );
+        playCmdChime(true);
+        break;
+
+      case 'chime':
+        if (typeof window !== 'undefined') {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) {
+            const ctx = new AudioCtx();
+            const playToneAt = (freq, start, duration) => {
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.frequency.value = freq;
+              osc.type = 'triangle';
+              gain.gain.setValueAtTime(0.001, start);
+              gain.gain.linearRampToValueAtTime(0.12, start + 0.02);
+              gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+              osc.start(start);
+              osc.stop(start + duration);
+            };
+            const now = ctx.currentTime;
+            playToneAt(523, now, 0.15);
+            playToneAt(659, now + 0.15, 0.15);
+            playToneAt(784, now + 0.30, 0.35);
+          }
+        }
+        newHistory.push({ text: "Replaying serene welcome chime...", type: "success" });
+        break;
+
+      case 'play':
+        if (args.length < 2) {
+          newHistory.push({ text: "Usage: play [freq_hz] [duration_ms]\nExample: play 440 200", type: "error" });
+          playCmdChime(false);
+        } else {
+          const freq = parseInt(args[0]);
+          const ms = parseInt(args[1]);
+          if (freq > 0 && ms > 0 && typeof window !== 'undefined') {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+              const ctx = new AudioCtx();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.type = 'triangle';
+              osc.frequency.value = freq;
+              gain.gain.setValueAtTime(0.001, ctx.currentTime);
+              gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.02);
+              gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (ms / 1000));
+              osc.start();
+              osc.stop(ctx.currentTime + (ms / 1000));
+            }
+            newHistory.push({ text: `Tone played: ${freq} Hz for ${ms} ms.`, type: "success" });
+          } else {
+            newHistory.push({ text: "Error: Frequency and duration must be positive integers.", type: "error" });
+            playCmdChime(false);
+          }
+        }
+        break;
+
+      case 'about':
+        newHistory.push(
+          { text: "SUNSET OS Naming Philosophy:", type: "info" },
+          { text: "Inspired by the developer's daily walks in the park between Asr and Maghrib.", type: "text" },
+          { text: "Watching natural sunsets brings peace, motivation, and a serene frame of mind.", type: "text" },
+          { text: "Sunset OS is built as a digital sanctuary representing this calm interval.", type: "logo" }
+        );
+        playCmdChime(true);
+        break;
+
+      case 'history':
+        newHistory.push({ text: "Recent Command Logs (Last 5):", type: "info" });
+        cmdHistoryList.slice(-5).forEach(h => {
+          newHistory.push({ text: `  - ${h}`, type: "text" });
+        });
+        playCmdChime(true);
         break;
 
       case 'ls':
@@ -53,6 +184,7 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
         const roots = files.filter(item => item.parent === 'root' || item.parent === '1');
         if (roots.length === 0) {
           newHistory.push({ text: "Empty directory.", type: "text" });
+          playCmdChime(false);
         } else {
           newHistory.push({ text: "Contents of /Home:", type: "info" });
           roots.forEach(f => {
@@ -60,12 +192,14 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
             const colorClass = f.type === 'folder' ? 'text-amber-400' : 'text-slate-200';
             newHistory.push({ text: `  ${indicator} ${f.name}`, type: f.type === 'folder' ? "folder" : "file" });
           });
+          playCmdChime(true);
         }
         break;
 
       case 'cat':
         if (args.length === 0) {
           newHistory.push({ text: "Error: Please specify file name. Usage: cat welcome.txt", type: "error" });
+          playCmdChime(false);
         } else {
           const vfs = getFilesList();
           const targetName = args[0];
@@ -76,8 +210,10 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
             lines.forEach(line => {
               newHistory.push({ text: line, type: "text" });
             });
+            playCmdChime(true);
           } else {
             newHistory.push({ text: `Error: File '${targetName}' not found. Ensure file exists and contains .txt extension.`, type: "error" });
+            playCmdChime(false);
           }
         }
         break;
@@ -85,6 +221,7 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
       case 'create':
         if (args.length < 2) {
           newHistory.push({ text: "Error: Please specify filename and content. Usage: create sunset.txt 'Hello World'", type: "error" });
+          playCmdChime(false);
         } else {
           const vfs = getFilesList();
           const fileName = args[0].endsWith('.txt') ? args[0] : `${args[0]}.txt`;
@@ -102,12 +239,14 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
           window.dispatchEvent(new Event('sunset_vfs_changed'));
           newHistory.push({ text: `[+] Success: File '${fileName}' created in Documents folder.`, type: "success" });
+          playCmdChime(true);
         }
         break;
 
       case 'rm':
         if (args.length === 0) {
           newHistory.push({ text: "Error: Specify file to delete. Usage: rm design_rules.txt", type: "error" });
+          playCmdChime(false);
         } else {
           const vfs = getFilesList();
           const targetName = args[0];
@@ -117,8 +256,10 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
             localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
             window.dispatchEvent(new Event('sunset_vfs_changed'));
             newHistory.push({ text: `[-] Deleted file '${match.name}' successfully.`, type: "success" });
+            playCmdChime(true);
           } else {
             newHistory.push({ text: `Error: File '${targetName}' not found.`, type: "error" });
+            playCmdChime(false);
           }
         }
         break;
@@ -128,24 +269,28 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           { text: "   🌅🌅🌅🌅      Sunset OS (Ghuroob OS)", type: "logo" },
           { text: " 🌅        🌅    ----------------------", type: "logo" },
           { text: "🌅  🌄  🌅  🌅   Host: Arshad Pasha Custom PC", type: "logo" },
-          { text: "🌅    🌅    🌅   OS Name: Sunset OS v0.1 (Stage 1)", type: "logo" },
-          { text: " 🌅        🌅    Kernel Core: LAZ Kernel v0.1 (Ring 0)", type: "logo" },
+          { text: "🌅    🌅    🌅   OS Name: Sunset OS v0.4 (Stage 4)", type: "logo" },
+          { text: " 🌅        🌅    Kernel Core: LAZ Kernel v0.4 (Sound enabled)", type: "logo" },
           { text: "   🌅🌅🌅🌅      Shell: SunsetSH (Terminal Console)", type: "logo" },
           { text: "                 RAM Usage: 14 MB / 8192 MB (0.1%)", type: "logo" },
           { text: "                 Design Ethos: Calm, Lightweight, Intelligent", type: "logo" }
         );
+        playCmdChime(true);
         break;
 
       case 'theme':
         if (args.length === 0) {
           newHistory.push({ text: "Error: Specify theme name. Available: sunset, greenery, dusk. Usage: theme dusk", type: "error" });
+          playCmdChime(false);
         } else {
           const selectedTheme = args[0].toLowerCase();
           if (['sunset', 'greenery', 'dusk'].includes(selectedTheme)) {
             changeDesktopTheme(selectedTheme);
             newHistory.push({ text: `[+] Theme changed to: ${selectedTheme.toUpperCase()}`, type: "success" });
+            playCmdChime(true);
           } else {
             newHistory.push({ text: `Error: Theme '${selectedTheme}' not recognized. Use 'sunset', 'greenery', or 'dusk'.`, type: "error" });
+            playCmdChime(false);
           }
         }
         break;
@@ -153,11 +298,13 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
       case 'voice':
         openVoiceAssistant();
         newHistory.push({ text: "[+] Initializing Ghuroob Voice AI Assistant engine...", type: "success" });
+        playCmdChime(true);
         break;
 
       case 'matrix':
         setIsMatrixActive(true);
         newHistory.push({ text: "[!] Booting system diagnostics in matrix mode. Click shell screen to close.", type: "success" });
+        playCmdChime(true);
         break;
 
       case 'clear':
@@ -167,6 +314,7 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
 
       default:
         newHistory.push({ text: `command not found: ${command}. Type 'help' to review active console tools.`, type: "error" });
+        playCmdChime(false);
     }
 
     setHistory(newHistory);
@@ -228,7 +376,10 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            playTick();
+          }}
           onKeyDown={handleKeyDown}
           className="flex-1 bg-transparent border-none outline-none text-emerald-400 font-mono text-xs caret-emerald-400"
           autoFocus

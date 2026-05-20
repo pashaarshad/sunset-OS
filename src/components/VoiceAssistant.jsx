@@ -9,6 +9,14 @@ export default function VoiceAssistant({ triggerSystemAction }) {
 
   // 1. Initialize Web Speech Recognition
   useEffect(() => {
+    // Localized context memory greetings
+    const vfs = JSON.parse(localStorage.getItem('sunset_os_vfs') || '[]');
+    const textFiles = vfs.filter(item => item.type === 'file' && item.name.endsWith('.txt'));
+    if (textFiles.length > 0) {
+      const latestFile = textFiles[textFiles.length - 1];
+      setResponse(`Welcome back, creator. I recall your calm focus. We recently worked on '${latestFile.name}' inside your Documents folder. Shall we open it?`);
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const rec = new SpeechRecognition();
@@ -33,6 +41,37 @@ export default function VoiceAssistant({ triggerSystemAction }) {
       setRecognition(rec);
     }
   }, []);
+
+  // 1.5 Web Audio API Synth to match bare-metal PC Speaker
+  const webPlayChime = () => {
+    if (typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      
+      const playToneAt = (freq, start, duration) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.frequency.value = freq;
+        osc.type = 'triangle'; // Calm, soft retro synthesizer tone
+        
+        gain.gain.setValueAtTime(0.001, start);
+        gain.gain.linearRampToValueAtTime(0.12, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+      
+      const now = ctx.currentTime;
+      playToneAt(523, now, 0.15);       // C5
+      playToneAt(659, now + 0.15, 0.15); // E5
+      playToneAt(784, now + 0.30, 0.35); // G5
+    }
+  };
 
   // 2. Soothing warm Speech Synthesis Voice Output
   const speakMessage = (text) => {
@@ -75,6 +114,13 @@ export default function VoiceAssistant({ triggerSystemAction }) {
       triggerSystemAction('pause_music');
       reply = "I have paused the audio playback. Absolute silence ready.";
     } 
+    else if (cleanCmd.includes("play startup chime") || cleanCmd.includes("play chime") || cleanCmd.includes("sound")) {
+      webPlayChime();
+      reply = "Synthesizing bare-metal Programmable Interval Timer Channel 2 audio. Serene ascending melody completed.";
+    }
+    else if (cleanCmd.includes("about the sunset") || cleanCmd.includes("philosophy") || cleanCmd.includes("name") || cleanCmd.includes("why sunset") || cleanCmd.includes("inspiration")) {
+      reply = "Sunset OS (Ghuroob OS) is inspired by daily walks in the park between Asr and Maghrib. It is a peaceful time when the sun sets, refreshing our eyes with greenery and giving deep motivation. The LAZ kernel runs on clean multitasking windows and idle breathing states to emulate this nature sequence.";
+    }
     else if (cleanCmd.includes("open file") || cleanCmd.includes("open explorer") || cleanCmd.includes("show documents")) {
       triggerSystemAction('open_app', 'filemanager');
       reply = "Launching the File Manager. Exploring your documents.";
