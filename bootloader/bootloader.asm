@@ -1,10 +1,10 @@
 ; =====================================================================
-; 🌅 Sunset OS (Ghuroob OS) — AP Bootloader (Milestone 2)
+; 🌅 Sunset OS (Ghuroob OS) — AP Bootloader (Milestone 3)
 ; File: bootloader.asm
 ; Author: Arshad Pasha
 ; Description: Custom 16-bit to 32-bit bootloader sector.
-;              Initializes CPU, loads C kernel from disk, switches
-;              to 32-bit Protected Mode, and jumps to C entry.
+;              Initializes CPU, loads C kernel, queries and sets VESA
+;              graphics mode, enters Protected Mode, and jumps to C entry.
 ; =====================================================================
 
 [org 0x7C00]          ; BIOS loads the boot sector here
@@ -48,7 +48,30 @@ start:
     ; 3. Load Kernel from disk
     call load_kernel
 
-    ; 4. Switch to 32-bit Protected Mode
+    ; 4. Query and Set VESA Graphics Mode (800x600x24)
+    mov si, msg_vesa_init
+    call print_string
+
+    ; Get VBE mode info for 0x115
+    mov ax, 0x4F01      ; Get VBE Mode Info BIOS call
+    mov cx, 0x115       ; 800x600 24-bit color VESA mode
+    mov di, 0x8000      ; Destination memory pointer (ES:DI)
+    int 0x10
+    cmp ax, 0x004F      ; Function successful returns 0x004F
+    jne vesa_error
+
+    ; Extract 32-bit physical LFB address (dword at offset 40 in VBE mode info block)
+    mov eax, [0x8000 + 40]
+    mov [VESA_LFB_ADDRESS], eax
+
+    ; Set VBE mode
+    mov ax, 0x4F02      ; Set VBE Mode BIOS call
+    mov bx, 0x4115      ; Mode 0x115 + Linear Frame Buffer (Bit 14 set = 0x4000)
+    int 0x10
+    cmp ax, 0x004F
+    jne vesa_error
+
+    ; 5. Switch to 32-bit Protected Mode
     cli               ; Disable interrupts
     lgdt [gdt_descriptor] ; Load our Global Descriptor Table
 
@@ -83,7 +106,7 @@ load_kernel:
     call print_string
 
     mov ah, 0x02      ; BIOS Read Sector function
-    mov al, 35        ; Number of sectors to read (17.5KB - loads entire C kernel)
+    mov al, 50        ; Read 50 sectors (25KB - allows space for larger C graphics modules)
     mov ch, 0         ; Cylinder 0
     mov dh, 0         ; Head 0
     mov cl, 2         ; Start reading at sector 2 (immediately after boot sector)
@@ -101,6 +124,11 @@ disk_error:
     call print_string
     jmp $             ; Hang on failure
 
+vesa_error:
+    mov si, msg_vesa_fail
+    call print_string
+    jmp $             ; Hang on failure
+
 ; =====================================================================
 ; GLOBAL DESCRIPTOR TABLE (GDT) DEFINITION
 ; =====================================================================
@@ -111,7 +139,6 @@ gdt_start:
 
 gdt_code:
     ; 2. Code Segment Descriptor (flat 4GB range)
-    ; base=0x0, limit=0xfffff, granularity=1, 32-bit default, type=Code(read/execute)
     dw 0xffff       ; Limit (bits 0-15)
     dw 0x0          ; Base (bits 0-15)
     db 0x0          ; Base (bits 16-23)
@@ -121,7 +148,6 @@ gdt_code:
 
 gdt_data:
     ; 3. Data Segment Descriptor (flat 4GB range)
-    ; base=0x0, limit=0xfffff, granularity=1, 32-bit default, type=Data(read/write)
     dw 0xffff       ; Limit (bits 0-15)
     dw 0x0          ; Base (bits 0-15)
     db 0x0          ; Base (bits 16-23)
@@ -156,6 +182,9 @@ init_pm:
     mov ebp, 0x90000
     mov esp, ebp
 
+    ; Push the 32-bit physical VESA Linear Frame Buffer address as the first argument to kernel_main
+    push dword [VESA_LFB_ADDRESS]
+
     ; Execute custom C kernel loaded at offset 0x1000
     call KERNEL_OFFSET
     
@@ -165,11 +194,14 @@ init_pm:
 ; =====================================================================
 ; BOOT SECTOR DATA
 ; =====================================================================
-BOOT_DRIVE    db 0           ; Store boot drive number here
-msg_loading   db '🌅 [AP Bootloader v0.1] Initiated...', 13, 10, 0
-msg_disk      db '[*] Loading LAZ Kernel from drive...', 13, 10, 0
-msg_disk_ok   db '[+] Disk load successful! Launching Protected Mode...', 13, 10, 0
-msg_disk_fail db '[FATAL] Disk sector read failed. System halted.', 13, 10, 0
+BOOT_DRIVE       db 0           ; Store boot drive number here
+VESA_LFB_ADDRESS dd 0           ; Store 32-bit physical address of Linear Frame Buffer
+msg_loading      db 'Sunset OS Booting...', 13, 10, 0
+msg_disk         db 'Loading kernel...', 13, 10, 0
+msg_disk_ok      db 'Kernel OK.', 13, 10, 0
+msg_vesa_init    db 'VESA VBE Init...', 13, 10, 0
+msg_disk_fail    db 'Disk Error!', 13, 10, 0
+msg_vesa_fail    db 'VESA 800x600x24 Unsupported!', 13, 10, 0
 
 times 510-($-$$) db 0 ; Pad remaining sector with zeros
 dw 0xAA55             ; Boot magic signature

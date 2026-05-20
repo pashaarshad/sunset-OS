@@ -36,19 +36,27 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host 'Bootloader assembled successfully (512 bytes)!' -ForegroundColor Green
 
-# 5. Compile C Kernel (kernel/kernel.c)
-Write-Host 'Compiling C Kernel (kernel/kernel.c)...' -ForegroundColor Cyan
-gcc -m32 -ffreestanding -c kernel/kernel.c -o build/kernel.o
-if ($LASTEXITCODE -ne 0) {
-    Write-Error 'Failed to compile C Kernel (kernel.c).'
-    Exit 1
+# 5. Compile C Kernel Modular Files
+Write-Host 'Compiling C Kernel modular source files...' -ForegroundColor Cyan
+
+$modules = @('memory', 'graphics', 'font', 'mouse', 'window', 'kernel')
+$objFiles = @()
+
+foreach ($module in $modules) {
+    Write-Host "Compiling kernel/${module}.c..." -ForegroundColor Gray
+    gcc -m32 -ffreestanding -c "kernel/${module}.c" -o "build/${module}.o"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to compile kernel/${module}.c"
+        Exit 1
+    }
+    $objFiles += "build/${module}.o"
 }
-Write-Host 'Kernel compiled successfully to object file!' -ForegroundColor Green
+Write-Host 'All kernel C modules compiled successfully!' -ForegroundColor Green
 
 # 6. Link bootloader and kernel using linker.ld
-Write-Host 'Linking Kernel binary...' -ForegroundColor Cyan
+Write-Host 'Linking Kernel binary segments together...' -ForegroundColor Cyan
 # We use standard Windows PE link with --image-base 0 to override default base address constraints
-ld -m i386pe -T kernel/linker.ld -o build/kernel.pe build/kernel.o --image-base 0
+ld -m i386pe -T kernel/linker.ld -o build/kernel.pe $objFiles --image-base 0
 if ($LASTEXITCODE -ne 0) {
     Write-Error 'Failed to link kernel into PE object.'
     Exit 1
