@@ -102,6 +102,10 @@ char kgetc() {
 // ---------------------------------------------------------------------
 static char diag_buffer[512];
 
+// Sakura falling animation coordinate states (thread-safe volatile)
+static volatile int global_sakura_x = 750;
+static volatile int global_sakura_y = 50;
+
 static unsigned int mystrlen(const char* str) {
     unsigned int len = 0;
     while (str[len] != '\0') {
@@ -150,10 +154,11 @@ static void update_diagnostics() {
     memcpy(diag_buffer + mystrlen(diag_buffer), switch_str, mystrlen(switch_str));
     memcpy(diag_buffer + mystrlen(diag_buffer), "\n", 1);
     
-    memcpy(diag_buffer + mystrlen(diag_buffer), "- Active Tasks: 3\n", 18);
+    memcpy(diag_buffer + mystrlen(diag_buffer), "- Active Tasks: 4\n", 18);
     memcpy(diag_buffer + mystrlen(diag_buffer), "  [1] Desktop GUI (Core)\n", 25);
     memcpy(diag_buffer + mystrlen(diag_buffer), "  [2] Melody Loop (Sound)\n", 26);
     memcpy(diag_buffer + mystrlen(diag_buffer), "  [3] System Monitor (Active)\n", 30);
+    memcpy(diag_buffer + mystrlen(diag_buffer), "  [4] Sakura Anim (Drifting)\n", 29);
 }
 
 // Task 1: Background Melody Chime Thread
@@ -182,6 +187,29 @@ void sys_monitor_task() {
     while (1) {
         sleep_ms(50); // Periodic refreshes every 50ms
         update_diagnostics();
+    }
+}
+
+// Task 3: Background Sakura Petal falling/drifting animation thread
+void sakura_anim_task() {
+    int sakura_y = 50;
+    int sakura_x = 750;
+    while (1) {
+        sleep_ms(120); // Cooperative scheduler sleep
+        
+        // Update sakura position drifting downwards and left
+        sakura_y += 3;
+        sakura_x -= 2;
+        
+        // Wrap around boundaries
+        if (sakura_y > 550 || sakura_x < 50) {
+            sakura_y = 50;
+            sakura_x = 750;
+        }
+        
+        // Store coordinates thread-safely
+        global_sakura_x = sakura_x;
+        global_sakura_y = sakura_y;
     }
 }
 
@@ -269,6 +297,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
     // 7. Register concurrent thread tasks
     create_task(melody_chime_task, "Melody Loop");
     create_task(sys_monitor_task, "System Monitor");
+    create_task(sakura_anim_task, "Sakura Anim");
 
     // 8. Dynamically render initial system statistics buffer
     update_diagnostics();
@@ -603,6 +632,15 @@ void kernel_main(unsigned int* vesa_framebuffer) {
 
             // 3. Clear offscreen back-buffer rendering sunset gradient
             draw_gradient(0);
+
+            // Render a delicate 5x5 drifting cherry blossom/sakura petal in the background
+            int sx = global_sakura_x;
+            int sy = global_sakura_y;
+            draw_rect(sx + 2, sy,     2, 1, 245, 160, 190);
+            draw_rect(sx + 1, sy + 1, 4, 1, 245, 150, 180);
+            draw_rect(sx,     sy + 2, 5, 1, 240, 140, 175);
+            draw_rect(sx + 1, sy + 3, 3, 1, 245, 150, 180);
+            draw_rect(sx + 2, sy + 4, 1, 1, 245, 160, 190);
 
             // 4. Render Windows based on focus order (Active window draws last on top)
             if (win_shell.active) {

@@ -8,6 +8,9 @@
 
 #include "sound.h"
 
+// Define the global sound hardware mutex
+mutex_t sound_mutex = {0};
+
 // Hardware I/O Port Helper Functions
 static inline unsigned char inb(unsigned short port) {
     unsigned char result;
@@ -19,18 +22,37 @@ static inline void outb(unsigned short port, unsigned char data) {
     __asm__ volatile("out %%al, %%dx" : : "a" (data), "d" (port));
 }
 
-// Calibrated millisecond-delay loop for emulated QEMU execution
+// Read the x86 EFLAGS register to check interrupt status
+static inline unsigned int read_eflags() {
+    unsigned int eflags;
+    __asm__ volatile("pushfl\n\tpopl %0" : "=r"(eflags));
+    return eflags;
+}
+
+// Calibrated millisecond-delay loop with cooperative multitasking sleep fallback
 void sleep_ms(unsigned int ms) {
-    for (unsigned int i = 0; i < ms; i++) {
-        volatile unsigned int count = 120000;
-        while (count--);
+    unsigned int eflags = read_eflags();
+    // If interrupts are enabled (IF = Bit 9) and sleep is >= 10ms, yield cooperatively
+    if ((eflags & 0x200) && ms >= 10) {
+        unsigned int ticks = ms / 10;
+        scheduler_sleep(ticks);
+    } else {
+        // Fallback to busy-wait loop during early boot or very short delays
+        for (unsigned int i = 0; i < ms; i++) {
+            volatile unsigned int count = 120000;
+            while (count--);
+        }
     }
 }
 
-// Play a tone on PC Speaker at the given frequency
+// Play a tone on PC Speaker at the given frequency with atomic hardware access protection
 void play_tone(unsigned int frequency) {
+    mutex_lock(&sound_mutex);
     if (frequency == 0) {
-        stop_tone();
+        // Stop speaker tone
+        unsigned char speaker_state = inb(SYSTEM_CONTROL_B_PORT) & 0xFC;
+        outb(SYSTEM_CONTROL_B_PORT, speaker_state);
+        mutex_unlock(&sound_mutex);
         return;
     }
 
@@ -49,12 +71,15 @@ void play_tone(unsigned int frequency) {
     if ((speaker_state & 0x03) != 0x03) {
         outb(SYSTEM_CONTROL_B_PORT, speaker_state | 0x03);
     }
+    mutex_unlock(&sound_mutex);
 }
 
-// Stop PC Speaker audio output
+// Stop PC Speaker audio output with atomic hardware access protection
 void stop_tone() {
+    mutex_lock(&sound_mutex);
     unsigned char speaker_state = inb(SYSTEM_CONTROL_B_PORT) & 0xFC;
     outb(SYSTEM_CONTROL_B_PORT, speaker_state);
+    mutex_unlock(&sound_mutex);
 }
 
 // Ascending Serene 3-Tone Welcome Melody (Major Chord: C5 -> E5 -> G5)
