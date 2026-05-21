@@ -133,12 +133,49 @@ void draw_char(char c, int x, int y, unsigned char r, unsigned char g, unsigned 
     }
 }
 
+static void draw_sunset_logo(int x, int y) {
+    for (int dy = 0; dy < 16; dy++) {
+        for (int dx = 0; dx < 16; dx++) {
+            int rx = dx - 8;
+            int ry = dy - 9;
+            int dist2 = rx * rx + ry * ry;
+            if (dy < 10) {
+                if (dist2 <= 36) {
+                    if (dist2 <= 16) {
+                        draw_pixel(x + dx, y + dy, 255, 240, 150); // Bright Sun Core (Light yellow)
+                    } else {
+                        draw_pixel(x + dx, y + dy, 253, 150, 30); // Outer Sun (Gold/Orange)
+                    }
+                }
+                // Sky is transparent, do not draw
+            } else {
+                // Sea
+                int is_reflection = (dx >= 4 && dx <= 11);
+                int wave = (dx + dy) % 4;
+                if (wave < 2) {
+                    if (is_reflection) {
+                        draw_pixel(x + dx, y + dy, 253, 184, 19); // Light Reflection (Gold)
+                    } else {
+                        draw_pixel(x + dx, y + dy, 70, 50, 120); // Sea Highlight (Indigo-Purple)
+                    }
+                } else {
+                    if (is_reflection) {
+                        draw_pixel(x + dx, y + dy, 180, 80, 30); // Shadow Reflection (Warm Copper)
+                    } else {
+                        draw_pixel(x + dx, y + dy, 30, 20, 60); // Deep Sea Body (Dark Violet)
+                    }
+                }
+            }
+        }
+    }
+}
+
 void draw_string(const char* str, int x, int y, unsigned char r, unsigned char g, unsigned char b) {
     int curr_x = x;
     int curr_y = y;
     
     for (int i = 0; str[i] != '\0'; i++) {
-        char c = str[i];
+        unsigned char c = (unsigned char)str[i];
         
         // Handle newlines
         if (c == '\n') {
@@ -147,7 +184,19 @@ void draw_string(const char* str, int x, int y, unsigned char r, unsigned char g
             continue;
         }
         
-        draw_char(c, curr_x, curr_y, r, g, b);
+        // Check for 🌅 emoji (UTF-8: F0 9F 8C 85)
+        if (c == 0xF0 && 
+            (unsigned char)str[i+1] == 0x9F && 
+            (unsigned char)str[i+2] == 0x8C && 
+            (unsigned char)str[i+3] == 0x85) {
+            
+            draw_sunset_logo(curr_x, curr_y - 4);
+            curr_x += 16;
+            i += 3;
+            continue;
+        }
+        
+        draw_char((char)c, curr_x, curr_y, r, g, b);
         curr_x += 8; // standard 8-pixel character spacing
         
         // Wrap around right side of screen

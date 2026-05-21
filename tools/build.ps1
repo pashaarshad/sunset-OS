@@ -62,6 +62,7 @@ $modules = @{
     'memory'    = 'kernel/memory/memory.c'
     'graphics'  = 'kernel/graphics/graphics.c'
     'font'      = 'kernel/graphics/font.c'
+    'vfs'       = 'kernel/core/vfs.c'
     'window'    = 'kernel/graphics/window.c'
     'garden'    = 'kernel/graphics/garden.c'
     'mouse'     = 'kernel/drivers/mouse.c'
@@ -72,7 +73,7 @@ $modules = @{
     'kernel'    = 'kernel/core/kernel.c'
 }
 
-$moduleOrder = @('memory', 'graphics', 'font', 'window', 'garden', 'mouse', 'sound', 'net', 'idt', 'scheduler', 'kernel')
+$moduleOrder = @('memory', 'graphics', 'font', 'vfs', 'window', 'garden', 'mouse', 'sound', 'net', 'idt', 'scheduler', 'kernel')
 $objFiles = @()
 
 foreach ($module in $moduleOrder) {
@@ -131,7 +132,9 @@ try {
 }
 
 # 8. Check and run QEMU
-if (-not (Get-Command qemu-system-x86_64 -ErrorAction SilentlyContinue)) {
+if ($env:NO_QEMU -eq 'true' -or $args -contains '-no-qemu') {
+    Write-Host 'Skipping QEMU boot execution as requested.' -ForegroundColor Yellow
+} elseif (-not (Get-Command qemu-system-x86_64 -ErrorAction SilentlyContinue)) {
     Write-Host 'QEMU was not found in your system environment PATH.' -ForegroundColor Yellow
     Write-Host 'Your OS is fully compiled, but QEMU is needed to emulate booting.' -ForegroundColor Gray
 } else {

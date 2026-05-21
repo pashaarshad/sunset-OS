@@ -17,6 +17,7 @@
 #include "../scheduler/idt.h"
 #include "../scheduler/scheduler.h"
 #include "garden.h"
+#include "vfs.h"
 
 // Scancode to US Keyboard ASCII mapping array (32-bit flat compatible)
 static const char scancode_to_ascii[] = {
@@ -26,8 +27,16 @@ static const char scancode_to_ascii[] = {
     'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' '
 };
 
+// Shifted scancode map: Shift held — uppercase letters and symbol characters
+static const char scancode_to_ascii_shifted[] = {
+    0,  27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
+    '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
+    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0, '|',
+    'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '*', 0, ' '
+};
+
 // Global interactive shell buffer states
-static char shell_buffer[256];
+static char shell_buffer[2048];
 static int shell_len = 0;
 
 static char garden_buffer[512];
@@ -46,6 +55,12 @@ static void helper_strcpy(char* dest, const char* src) {
 // Context memory history buffer
 static char cmd_history[5][32];
 static int history_count = 0;
+static int history_nav_idx = 0; // Tracks current position for Up/Down arrow navigation
+
+// Keyboard modifier state flags
+static volatile char shift_pressed = 0;  // Left or Right Shift is held
+static volatile char caps_lock    = 0;  // Caps Lock toggle state
+static volatile char extended_key = 0;  // 0xE0 prefix seen (arrow/function keys)
 
 // ---------------------------------------------------------------------
 // Interrupt-Driven Keyboard Driver with Ring Buffer Queue
@@ -73,9 +88,51 @@ void keyboard_handler() {
     // Bit 0 must be 1 (output buffer full) and Bit 5 must be 0 (keyboard data, not mouse)
     if ((status & 0x21) == 0x01) {
         unsigned char scancode = inb(0x60);
-        // Process make-codes (keydown events, < 0x80)
-        if (scancode < 0x80) {
-            char ascii = scancode_to_ascii[scancode];
+
+        // ── Extended key prefix (E0 h) — arrow keys, Insert, Delete, etc.
+        if (scancode == 0xE0) {
+            extended_key = 1;
+            return;
+        }
+
+        // ── Handle extended key follow-up
+        if (extended_key) {
+            extended_key = 0;
+            if (scancode == 0x48) { // Up arrow → history-previous signal
+                int next = (keyboard_head + 1) % KEYBOARD_BUFFER_SIZE;
+                if (next != keyboard_tail) {
+                    keyboard_queue[keyboard_head] = 0x01; // Internal: history up
+                    keyboard_head = next;
+                }
+            } else if (scancode == 0x50) { // Down arrow → history-next signal
+                int next = (keyboard_head + 1) % KEYBOARD_BUFFER_SIZE;
+                if (next != keyboard_tail) {
+                    keyboard_queue[keyboard_head] = 0x02; // Internal: history down
+                    keyboard_head = next;
+                }
+            }
+            return;
+        }
+
+        // ── Shift key press / release (Left=0x2A/0xAA, Right=0x36/0xB6)
+        if (scancode == 0x2A || scancode == 0x36) { shift_pressed = 1; return; }
+        if (scancode == 0xAA || scancode == 0xB6) { shift_pressed = 0; return; }
+
+        // ── Caps Lock toggle (scancode 0x3A)
+        if (scancode == 0x3A) { caps_lock = !caps_lock; return; }
+
+        // ── Process make-codes (key-down, < 0x80)
+        if (scancode < 0x80 && scancode < 58) {
+            // Effective shift: Caps Lock inverts shift only for letter scancodes (0x10–0x32)
+            char eff_shift = shift_pressed;
+            if (caps_lock && scancode >= 0x10 && scancode <= 0x32) {
+                eff_shift = !shift_pressed;
+            }
+
+            char ascii = eff_shift
+                ? scancode_to_ascii_shifted[scancode]
+                : scancode_to_ascii[scancode];
+
             if (ascii != 0) {
                 int next = (keyboard_head + 1) % KEYBOARD_BUFFER_SIZE;
                 if (next != keyboard_tail) {
@@ -131,6 +188,42 @@ static void uint_to_str(unsigned int val, char* buf) {
         buf[i++] = temp[j];
     }
     buf[i] = '\0';
+}
+
+static int sh_strcmp(const char* s1, const char* s2) {
+    int i = 0;
+    while (s1[i] != '\0' && s2[i] != '\0') {
+        if (s1[i] != s2[i]) return s1[i] - s2[i];
+        i++;
+    }
+    return s1[i] - s2[i];
+}
+
+static int sh_strncmp(const char* s1, const char* s2, int n) {
+    for (int i = 0; i < n; i++) {
+        if (s1[i] == '\0' || s2[i] == '\0') {
+            if (s1[i] != s2[i]) return s1[i] - s2[i];
+            break;
+        }
+        if (s1[i] != s2[i]) return s1[i] - s2[i];
+    }
+    return 0;
+}
+
+static int find_last_prompt_pos() {
+    int prompt_len = 13;
+    const char* p = "sunset-OS:~$ ";
+    for (int k = shell_len - prompt_len; k >= 0; k--) {
+        char match = 1;
+        for (int p_idx = 0; p_idx < prompt_len; p_idx++) {
+            if (shell_buffer[k + p_idx] != p[p_idx]) {
+                match = 0;
+                break;
+            }
+        }
+        if (match) return k;
+    }
+    return 0;
 }
 
 extern volatile unsigned int context_switches;
@@ -214,13 +307,13 @@ void sakura_anim_task() {
 }
 
 static void clear_shell() {
-    memset(shell_buffer, 0, 256);
+    memset(shell_buffer, 0, 2048);
     memcpy(shell_buffer, "[OK] Shell active.\nsunset-OS:~$ ", 32);
     shell_len = 32;
 }
 
 static void append_to_shell(const char* str) {
-    for (int i = 0; str[i] != '\0' && shell_len < 240; i++) {
+    for (int i = 0; str[i] != '\0' && shell_len < 2000; i++) {
         shell_buffer[shell_len++] = str[i];
     }
     shell_buffer[shell_len] = '\0';
@@ -247,6 +340,9 @@ void kernel_main(unsigned int* vesa_framebuffer) {
 
     // 3. Initialize auxiliary hardware Mouse driver
     init_mouse();
+
+    // 3.5 Initialize Virtual File System RAM Disk
+    vfs_init();
 
     // 4. Render Serene Boot Loading Screen
     draw_gradient(0);
@@ -315,7 +411,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
 
     init_window(&win_diag, 40, 70, 320, 210, "System Diagnostics", diag_buffer);
 
-    helper_strcpy(notes_buffer,
+    vfs_write("notes.txt",
                 "WELCOME TO SUNSET OS\n"
                 "Watching natural sunsets brings\n"
                 "peace, motivation and focus.\n\n"
@@ -323,7 +419,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 "distractions, letting you work\n"
                 "in a serene computing environment.\n\n"
                 "Breathe in. Rest. Reflect.");
-
+    vfs_read("notes.txt", notes_buffer, 1024);
     init_window(&win_notes, 440, 70, 320, 210, "Calm Notes", notes_buffer);
 
     clear_shell();
@@ -370,7 +466,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
         if (ascii != 0) {
             idle_timer = 0;
             is_ambient = 0;
-            
+
             if (show_garden && win_garden.active) {
                 if (ascii == 27 || ascii == 'q' || ascii == 'Q') {
                     show_garden = 0;
@@ -380,17 +476,99 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     handle_garden_input(ascii);
                     draw_garden_content(garden_buffer);
                 }
+
+            // ── Up arrow: recall previous command from history
+            } else if (ascii == 0x01) {
+                if (history_count > 0 && history_nav_idx > 0) {
+                    history_nav_idx--;
+                    int last_prompt = find_last_prompt_pos();
+                    shell_len = last_prompt + 13;
+                    shell_buffer[shell_len] = '\0';
+                    append_to_shell(cmd_history[history_nav_idx % 5]);
+                }
+
+            // ── Down arrow: recall newer command from history
+            } else if (ascii == 0x02) {
+                if (history_nav_idx < history_count) {
+                    history_nav_idx++;
+                    int last_prompt = find_last_prompt_pos();
+                    shell_len = last_prompt + 13;
+                    shell_buffer[shell_len] = '\0';
+                    if (history_nav_idx < history_count) {
+                        append_to_shell(cmd_history[history_nav_idx % 5]);
+                    }
+                }
+
+            // ── Tab: smart autocomplete (command name or VFS filename)
+            } else if (ascii == '\t') {
+                int last_prompt = find_last_prompt_pos();
+                int cmd_start  = last_prompt + 13;
+                if (shell_len > cmd_start) {
+                    char partial[64];
+                    int p_len = 0;
+                    for (int k = cmd_start; k < shell_len && p_len < 63; k++) {
+                        partial[p_len++] = shell_buffer[k];
+                    }
+                    partial[p_len] = '\0';
+
+                    // Find first space → decides command vs. filename completion
+                    int space_pos = -1;
+                    for (int j = 0; j < p_len; j++) {
+                        if (partial[j] == ' ') { space_pos = j; break; }
+                    }
+
+                    if (space_pos == -1) {
+                        // Complete a command name
+                        const char* cmds[] = {
+                            "help", "clear", "ambient", "panic", "about", "chime",
+                            "play", "history", "ifconfig", "ping", "fetch", "garden",
+                            "note", "lofi", "ls", "cat", "touch", "write", "rm", 0
+                        };
+                        const char* hit = 0; int cnt = 0;
+                        for (int c = 0; cmds[c] != 0; c++) {
+                            int ok = 1;
+                            for (int j = 0; j < p_len; j++) {
+                                if (cmds[c][j] == '\0' || cmds[c][j] != partial[j]) { ok=0; break; }
+                            }
+                            if (ok) { hit = cmds[c]; cnt++; }
+                        }
+                        if (cnt == 1 && hit) {
+                            shell_len = cmd_start;
+                            shell_buffer[shell_len] = '\0';
+                            append_to_shell(hit);
+                        }
+                    } else {
+                        // Complete a VFS filename after the command + space
+                        char file_partial[32];
+                        int fp_len = 0;
+                        for (int j = space_pos + 1; j < p_len && fp_len < 31; j++) {
+                            file_partial[fp_len++] = partial[j];
+                        }
+                        file_partial[fp_len] = '\0';
+                        char matched_file[32];
+                        int matches = vfs_find_prefix(file_partial, matched_file, 32);
+                        if (matches == 1) {
+                            // Erase the partial filename, write the completed one
+                            shell_len = cmd_start + space_pos + 1;
+                            shell_buffer[shell_len] = '\0';
+                            append_to_shell(matched_file);
+                        }
+                    }
+                }
+
             } else if (ascii == '\b') {
-                // Disallow removing standard shell prompt prefix
-                if (shell_len > 32) {
+                int last_prompt = find_last_prompt_pos();
+                if (shell_len > last_prompt + 13) {
                     shell_len--;
                     shell_buffer[shell_len] = '\0';
                 }
             } else if (ascii == '\n') {
                 // Extract typed command
-                char cmd[32];
+                char cmd[128];
                 int cmd_idx = 0;
-                for (int k = 32; k < shell_len && cmd_idx < 30; k++) {
+                int last_prompt = find_last_prompt_pos();
+                int cmd_start = last_prompt + 13;
+                for (int k = cmd_start; k < shell_len && cmd_idx < 120; k++) {
                     cmd[cmd_idx++] = shell_buffer[k];
                 }
                 cmd[cmd_idx] = '\0';
@@ -400,112 +578,141 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     memcpy(cmd_history[history_count % 5], cmd, cmd_idx);
                     cmd_history[history_count % 5][cmd_idx] = '\0';
                     history_count++;
+                    history_nav_idx = history_count; // Reset nav pointer to end
                 }
                 
                 // Process shell commands
                 if (cmd_idx == 0) {
                     append_to_shell("\nsunset-OS:~$ ");
-                } else if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
-                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3]");
+                } else if (sh_strcmp(cmd, "help") == 0) {
+                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3],\n          ls, cat [file], touch [file],\n          write [file] [txt], rm [file]");
                     append_to_shell("\nsunset-OS:~$ ");
-                } else if (cmd[0] == 'i' && cmd[1] == 'f' && cmd[2] == 'c' && cmd[3] == 'o' && cmd[4] == 'n' && cmd[5] == 'f' && cmd[6] == 'i' && cmd[7] == 'g') {
-                    char out_buf[1024];
-                    net_ifconfig(out_buf, 1024);
-                    append_to_shell(out_buf);
+                } else if (sh_strcmp(cmd, "ls") == 0) {
+                    char file_list[512];
+                    vfs_list(file_list, 512);
+                    append_to_shell(file_list);
                     append_to_shell("sunset-OS:~$ ");
-                } else if (cmd[0] == 'p' && cmd[1] == 'i' && cmd[2] == 'n' && cmd[3] == 'g') {
-                    int idx = 4;
-                    while (cmd[idx] == ' ') idx++;
-                    if (cmd[idx] != '\0') {
-                        char out_buf[1024];
-                        net_ping(cmd + idx, out_buf, 1024);
-                        append_to_shell(out_buf);
+                } else if (sh_strncmp(cmd, "cat ", 4) == 0) {
+                    const char* filename = cmd + 4;
+                    while (*filename == ' ') filename++;
+                    char file_content[512];
+                    if (vfs_read(filename, file_content, 512)) {
+                        append_to_shell("\n");
+                        append_to_shell(file_content);
+                        append_to_shell("\n");
                     } else {
-                        append_to_shell("\nUsage: ping [ip]\nExample: ping 8.8.8.8\n");
-                    }
-                    append_to_shell("sunset-OS:~$ ");
-                } else if (cmd[0] == 'f' && cmd[1] == 'e' && cmd[2] == 't' && cmd[3] == 'c' && cmd[4] == 'h') {
-                    int idx = 5;
-                    while (cmd[idx] == ' ') idx++;
-                    if (cmd[idx] != '\0') {
-                        char out_buf[1024];
-                        net_fetch(cmd + idx, out_buf, 1024);
-                        append_to_shell(out_buf);
-                    } else {
-                        append_to_shell("\nUsage: fetch [url]\nExample: fetch sunset://rest\n");
+                        append_to_shell("\n[Error] File not found: ");
+                        append_to_shell(filename);
+                        append_to_shell("\n");
                     }
                     append_to_shell("sunset-OS:~$ ");
-                } else if (cmd[0] == 'c' && cmd[1] == 'l' && cmd[2] == 'e' && cmd[3] == 'a' && cmd[4] == 'r') {
-                    clear_shell();
-                } else if (cmd[0] == 'c' && cmd[1] == 'h' && cmd[2] == 'i' && cmd[3] == 'm' && cmd[4] == 'e') {
-                    append_to_shell("\nReplaying serene welcome chime...");
-                    play_startup_chime();
-                    append_to_shell("\nsunset-OS:~$ ");
-                } else if (cmd[0] == 'p' && cmd[1] == 'l' && cmd[2] == 'a' && cmd[3] == 'y') {
-                    // play [freq] [ms]
-                    int idx = 5;
-                    unsigned int freq = 0;
-                    unsigned int ms = 0;
-                    while (cmd[idx] >= '0' && cmd[idx] <= '9') {
-                        freq = freq * 10 + (cmd[idx] - '0');
-                        idx++;
-                    }
-                    if (cmd[idx] == ' ') idx++;
-                    while (cmd[idx] >= '0' && cmd[idx] <= '9') {
-                        ms = ms * 10 + (cmd[idx] - '0');
-                        idx++;
-                    }
-                    if (freq > 0 && ms > 0) {
-                        play_tone(freq);
-                        sleep_ms(ms);
-                        stop_tone();
-                        append_to_shell("\nTone played successfully.");
+                } else if (sh_strncmp(cmd, "touch ", 6) == 0) {
+                    const char* filename = cmd + 6;
+                    while (*filename == ' ') filename++;
+                    if (vfs_write(filename, "")) {
+                        append_to_shell("\n[OK] File created: ");
+                        append_to_shell(filename);
+                        append_to_shell("\n");
                     } else {
-                        append_to_shell("\nUsage: play [freq_hz] [duration_ms]\nExample: play 440 200");
+                        append_to_shell("\n[Error] Failed to create file.\n");
                     }
-                    append_to_shell("\nsunset-OS:~$ ");
-                } else if (cmd[0] == 'a' && cmd[1] == 'b' && cmd[2] == 'o' && cmd[3] == 'u' && cmd[4] == 't') {
-                    append_to_shell("\nSUNSET OS naming philosophy:\nInspired by daily sunset walks between Asr and Maghrib.\nA restorative time that refreshes, motivates, and inspires.\nDesigned for serene focus.");
-                    append_to_shell("\nsunset-OS:~$ ");
-                } else if (cmd[0] == 'h' && cmd[1] == 'i' && cmd[2] == 's' && cmd[3] == 't' && cmd[4] == 'o' && cmd[5] == 'r' && cmd[6] == 'y') {
-                    append_to_shell("\nRecent Command History Logs:");
-                    int start = (history_count > 5) ? (history_count - 5) : 0;
-                    for (int h = start; h < history_count; h++) {
-                        append_to_shell("\n- ");
-                        append_to_shell(cmd_history[h % 5]);
+                    append_to_shell("sunset-OS:~$ ");
+                } else if (sh_strncmp(cmd, "write ", 6) == 0) {
+                    const char* p_arg = cmd + 6;
+                    while (*p_arg == ' ') p_arg++;
+                    
+                    char filename[32];
+                    int fn_idx = 0;
+                    while (*p_arg != '\0' && *p_arg != ' ' && fn_idx < 31) {
+                        filename[fn_idx++] = *p_arg++;
                     }
-                    append_to_shell("\nsunset-OS:~$ ");
-                } else if (cmd[0] == 'a' && cmd[1] == 'm' && cmd[2] == 'b' && cmd[3] == 'i' && cmd[4] == 'e' && cmd[5] == 'n' && cmd[6] == 't') {
-                    append_to_shell("\nInitiating breathing Ambient OS Mode...");
-                    is_ambient = 1;
-                    idle_timer = 500000; // Trigger threshold instantly
-                } else if (cmd[0] == 'g' && cmd[1] == 'a' && cmd[2] == 'r' && cmd[3] == 'd' && cmd[4] == 'e' && cmd[5] == 'n') {
-                    append_to_shell("\nSpawning Zen Garden sandbox window...");
-                    show_garden = 1;
-                    win_diag.active = 0;
-                    win_notes.active = 0;
-                    win_shell.active = 0;
-                    win_garden.active = 1;
-                    draw_garden_content(garden_buffer);
-                    append_to_shell("\nsunset-OS:~$ ");
-                } else if (cmd[0] == 'n' && cmd[1] == 'o' && cmd[2] == 't' && cmd[3] == 'e') {
-                    int idx = 4;
-                    while (cmd[idx] == ' ') idx++;
-                    if (cmd[idx] != '\0') {
-                        int notes_len = 0;
-                        while (notes_buffer[notes_len] != '\0') {
-                            notes_len++;
-                        }
-                        if (notes_len < 900) {
-                            notes_buffer[notes_len++] = '\n';
-                            notes_buffer[notes_len++] = '-';
-                            notes_buffer[notes_len++] = ' ';
-                            int k = idx;
-                            while (cmd[k] != '\0' && notes_len < 1020) {
-                                notes_buffer[notes_len++] = cmd[k++];
+                    filename[fn_idx] = '\0';
+                    
+                    while (*p_arg == ' ') p_arg++;
+                    
+                    if (filename[0] != '\0') {
+                        const char* content = p_arg;
+                        if (*content == '"') {
+                            content++;
+                            char temp_content[512];
+                            int tc_idx = 0;
+                            while (*content != '\0' && *content != '"' && tc_idx < 511) {
+                                temp_content[tc_idx++] = *content++;
                             }
-                            notes_buffer[notes_len] = '\0';
-                            append_to_shell("\nNote appended to Calm Notes.");
+                            temp_content[tc_idx] = '\0';
+                            if (vfs_write(filename, temp_content)) {
+                                append_to_shell("\n[OK] Wrote to ");
+                                append_to_shell(filename);
+                                append_to_shell("\n");
+                                if (sh_strcmp(filename, "notes.txt") == 0) {
+                                    vfs_read("notes.txt", notes_buffer, 1024);
+                                    win_notes.content = notes_buffer;
+                                }
+                            } else {
+                                append_to_shell("\n[Error] Write failed.\n");
+                            }
+                        } else {
+                            if (vfs_write(filename, content)) {
+                                append_to_shell("\n[OK] Wrote to ");
+                                append_to_shell(filename);
+                                append_to_shell("\n");
+                                if (sh_strcmp(filename, "notes.txt") == 0) {
+                                    vfs_read("notes.txt", notes_buffer, 1024);
+                                    win_notes.content = notes_buffer;
+                                }
+                            } else {
+                                append_to_shell("\n[Error] Write failed.\n");
+                            }
+                        }
+                    } else {
+                        append_to_shell("\nUsage: write [file] [text]\n");
+                    }
+                    append_to_shell("sunset-OS:~$ ");
+                } else if (sh_strncmp(cmd, "rm ", 3) == 0) {
+                    const char* filename = cmd + 3;
+                    while (*filename == ' ') filename++;
+                    if (vfs_delete(filename)) {
+                        append_to_shell("\n[OK] File deleted: ");
+                        append_to_shell(filename);
+                        append_to_shell("\n");
+                        if (sh_strcmp(filename, "notes.txt") == 0) {
+                            notes_buffer[0] = '\0';
+                            win_notes.content = notes_buffer;
+                        }
+                    } else {
+                        append_to_shell("\n[Error] File not found.\n");
+                    }
+                    append_to_shell("sunset-OS:~$ ");
+                } else if (sh_strncmp(cmd, "note ", 5) == 0 || sh_strcmp(cmd, "note") == 0) {
+                    const char* msg = cmd + 4;
+                    if (sh_strncmp(cmd, "note ", 5) == 0) msg = cmd + 5;
+                    while (*msg == ' ') msg++;
+                    
+                    if (*msg != '\0') {
+                        char current_notes[1024];
+                        memset(current_notes, 0, 1024);
+                        vfs_read("notes.txt", current_notes, 1024);
+                        
+                        int cur_len = mystrlen(current_notes);
+                        if (cur_len < 900) {
+                            if (cur_len > 0) {
+                                current_notes[cur_len++] = '\n';
+                                current_notes[cur_len++] = '-';
+                                current_notes[cur_len++] = ' ';
+                            } else {
+                                current_notes[cur_len++] = '-';
+                                current_notes[cur_len++] = ' ';
+                            }
+                            int k = 0;
+                            while (msg[k] != '\0' && cur_len < 1020) {
+                                current_notes[cur_len++] = msg[k++];
+                            }
+                            current_notes[cur_len] = '\0';
+                            
+                            vfs_write("notes.txt", current_notes);
+                            vfs_read("notes.txt", notes_buffer, 1024);
+                            win_notes.content = notes_buffer;
+                            append_to_shell("\n[OK] Note appended and synced to notes.txt");
                         } else {
                             append_to_shell("\nNotes buffer is full.");
                         }
@@ -513,10 +720,11 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         append_to_shell("\nUsage: note [message]\nExample: note take a deep breath");
                     }
                     append_to_shell("\nsunset-OS:~$ ");
-                } else if (cmd[0] == 'l' && cmd[1] == 'o' && cmd[2] == 'f' && cmd[3] == 'i') {
-                    int idx = 4;
-                    while (cmd[idx] == ' ') idx++;
-                    int preset = cmd[idx] - '0';
+                } else if (sh_strncmp(cmd, "lofi ", 5) == 0 || sh_strcmp(cmd, "lofi") == 0) {
+                    const char* p_arg = cmd + 4;
+                    if (sh_strncmp(cmd, "lofi ", 5) == 0) p_arg = cmd + 5;
+                    while (*p_arg == ' ') p_arg++;
+                    int preset = *p_arg - '0';
                     if (preset == 1) {
                         append_to_shell("\nPlaying tranquility arpeggio...");
                         play_tone(440); sleep_ms(150);
@@ -542,7 +750,87 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         append_to_shell("\nUsage: lofi [1-3]\nPresets: 1 (Tranquility), 2 (Serenity), 3 (Golden Sunset)");
                     }
                     append_to_shell("\nsunset-OS:~$ ");
-                } else if (cmd[0] == 'p' && cmd[1] == 'a' && cmd[2] == 'n' && cmd[3] == 'i' && cmd[4] == 'c') {
+                } else if (cmd[0] == 'i' && cmd[1] == 'f' && cmd[2] == 'c' && cmd[3] == 'o' && cmd[4] == 'n' && cmd[5] == 'f' && cmd[6] == 'i' && cmd[7] == 'g') {
+                    char out_buf[1024];
+                    net_ifconfig(out_buf, 1024);
+                    append_to_shell(out_buf);
+                    append_to_shell("sunset-OS:~$ ");
+                } else if (sh_strncmp(cmd, "ping ", 5) == 0) {
+                    const char* ip = cmd + 5;
+                    while (*ip == ' ') ip++;
+                    if (*ip != '\0') {
+                        char out_buf[1024];
+                        net_ping(ip, out_buf, 1024);
+                        append_to_shell(out_buf);
+                    } else {
+                        append_to_shell("\nUsage: ping [ip]\nExample: ping 8.8.8.8\n");
+                    }
+                    append_to_shell("sunset-OS:~$ ");
+                } else if (sh_strncmp(cmd, "fetch ", 6) == 0) {
+                    const char* url = cmd + 6;
+                    while (*url == ' ') url++;
+                    if (*url != '\0') {
+                        char out_buf[1024];
+                        net_fetch(url, out_buf, 1024);
+                        append_to_shell(out_buf);
+                    } else {
+                        append_to_shell("\nUsage: fetch [url]\nExample: fetch sunset://rest\n");
+                    }
+                    append_to_shell("sunset-OS:~$ ");
+                } else if (sh_strcmp(cmd, "clear") == 0) {
+                    clear_shell();
+                } else if (sh_strcmp(cmd, "chime") == 0) {
+                    append_to_shell("\nReplaying serene welcome chime...");
+                    play_startup_chime();
+                    append_to_shell("\nsunset-OS:~$ ");
+                } else if (sh_strncmp(cmd, "play ", 5) == 0) {
+                    const char* p_arg = cmd + 5;
+                    while (*p_arg == ' ') p_arg++;
+                    unsigned int freq = 0;
+                    unsigned int ms = 0;
+                    while (*p_arg >= '0' && *p_arg <= '9') {
+                        freq = freq * 10 + (*p_arg - '0');
+                        p_arg++;
+                    }
+                    if (*p_arg == ' ') p_arg++;
+                    while (*p_arg >= '0' && *p_arg <= '9') {
+                        ms = ms * 10 + (*p_arg - '0');
+                        p_arg++;
+                    }
+                    if (freq > 0 && ms > 0) {
+                        play_tone(freq);
+                        sleep_ms(ms);
+                        stop_tone();
+                        append_to_shell("\nTone played successfully.");
+                    } else {
+                        append_to_shell("\nUsage: play [freq_hz] [duration_ms]\nExample: play 440 200");
+                    }
+                    append_to_shell("\nsunset-OS:~$ ");
+                } else if (sh_strcmp(cmd, "about") == 0) {
+                    append_to_shell("\nSUNSET OS naming philosophy:\nInspired by daily sunset walks between Asr and Maghrib.\nA restorative time that refreshes, motivates, and inspires.\nDesigned for serene focus.");
+                    append_to_shell("\nsunset-OS:~$ ");
+                } else if (sh_strcmp(cmd, "history") == 0) {
+                    append_to_shell("\nRecent Command History Logs:");
+                    int start = (history_count > 5) ? (history_count - 5) : 0;
+                    for (int h = start; h < history_count; h++) {
+                        append_to_shell("\n- ");
+                        append_to_shell(cmd_history[h % 5]);
+                    }
+                    append_to_shell("\nsunset-OS:~$ ");
+                } else if (sh_strcmp(cmd, "ambient") == 0) {
+                    append_to_shell("\nInitiating breathing Ambient OS Mode...");
+                    is_ambient = 1;
+                    idle_timer = 500000;
+                } else if (sh_strcmp(cmd, "garden") == 0) {
+                    append_to_shell("\nSpawning Zen Garden sandbox window...");
+                    show_garden = 1;
+                    win_diag.active = 0;
+                    win_notes.active = 0;
+                    win_shell.active = 0;
+                    win_garden.active = 1;
+                    draw_garden_content(garden_buffer);
+                    append_to_shell("\nsunset-OS:~$ ");
+                } else if (sh_strcmp(cmd, "panic") == 0) {
                     kpanic("USER TRIGGERED CORE EXCEPTION PANIC");
                 } else {
                     append_to_shell("\n[Error] Unknown command. Type 'help'");
@@ -550,7 +838,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 }
             } else {
                 // Append normal characters
-                if (shell_len < 240) {
+                if (shell_len < 2000) {
                     shell_buffer[shell_len++] = ascii;
                     shell_buffer[shell_len] = '\0';
                 }
