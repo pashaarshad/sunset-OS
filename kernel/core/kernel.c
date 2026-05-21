@@ -206,8 +206,45 @@ void kernel_main(unsigned int* vesa_framebuffer) {
     // 3. Initialize auxiliary hardware Mouse driver
     init_mouse();
 
-    // 4. Play the serene ascending welcome melody chime
+    // 4. Render Serene Boot Loading Screen
+    draw_gradient(0);
+    
+    // Draw Gorgeous Centered Loading Panel
+    draw_rect(200, 180, 400, 240, 30, 25, 35); // Sleek charcoal-purple card
+    draw_rect_outline(199, 179, 402, 242, 227, 133, 53); // Glowing gold borders
+    
+    draw_string("🌅 Sunset OS", 335, 210, 227, 133, 53);
+    draw_string("Breathe in. Rest. Reflect.", 285, 240, 245, 235, 230);
+    
+    // Draw Progress Bar Outline
+    draw_rect_outline(250, 280, 300, 16, 227, 133, 53);
+    
+    // Play the serene welcome melody chime as loading starts
     play_startup_chime();
+
+    for (int p = 0; p <= 100; p++) {
+        // Fill Progress Bar
+        int fill_width = (296 * p) / 100;
+        draw_rect(252, 282, fill_width, 12, 227, 133, 53); // Sunset Gold fill
+        
+        // Clear and render loading status message
+        draw_rect(210, 320, 380, 30, 30, 25, 35); // Clear text area
+        
+        if (p < 25) {
+            draw_string("Loading kernel systems...", 290, 320, 220, 220, 220);
+        } else if (p < 50) {
+            draw_string("Initializing memory buffers...", 275, 320, 220, 220, 220);
+        } else if (p < 75) {
+            draw_string("Mounting virtual drives...", 290, 320, 220, 220, 220);
+        } else if (p < 90) {
+            draw_string("Starting preemptive scheduler...", 265, 320, 220, 220, 220);
+        } else {
+            draw_string("Opening serene workspace...", 285, 320, 220, 220, 220);
+        }
+        
+        flush_buffer();
+        delay(1200000); // Smooth progress delay
+    }
 
     // 5. Initialize Interrupts and IDT Remapping
     init_idt();
