@@ -36,26 +36,50 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host 'Bootloader assembled successfully (512 bytes)!' -ForegroundColor Green
 
-# 4.5 Assemble Kernel Entry Stub (kernel/entry.asm)
-Write-Host 'Assembling kernel/entry.asm...' -ForegroundColor Cyan
-nasm -f win32 kernel/entry.asm -o build/entry.o
+# 4.5 Assemble Kernel Entry Stub (kernel/core/entry.asm)
+Write-Host 'Assembling kernel/core/entry.asm...' -ForegroundColor Cyan
+nasm -f win32 kernel/core/entry.asm -o build/entry.o
 if ($LASTEXITCODE -ne 0) {
     Write-Error 'Failed to assemble entry.asm.'
     Exit 1
 }
 Write-Host 'Kernel entry stub assembled successfully!' -ForegroundColor Green
 
+# 4.6 Assemble Interrupt Service Routine Stubs (kernel/scheduler/interrupt.asm)
+Write-Host 'Assembling kernel/scheduler/interrupt.asm...' -ForegroundColor Cyan
+nasm -f win32 kernel/scheduler/interrupt.asm -o build/interrupt.o
+if ($LASTEXITCODE -ne 0) {
+    Write-Error 'Failed to assemble interrupt.asm.'
+    Exit 1
+}
+Write-Host 'Interrupt assembly stubs assembled successfully!' -ForegroundColor Green
+
 # 5. Compile C Kernel Modular Files
 Write-Host 'Compiling C Kernel modular source files...' -ForegroundColor Cyan
 
-$modules = @('memory', 'graphics', 'font', 'mouse', 'window', 'sound', 'net', 'kernel')
+# Define mapping of module names to their new relative source paths
+$modules = @{
+    'memory'    = 'kernel/memory/memory.c'
+    'graphics'  = 'kernel/graphics/graphics.c'
+    'font'      = 'kernel/graphics/font.c'
+    'window'    = 'kernel/graphics/window.c'
+    'mouse'     = 'kernel/drivers/mouse.c'
+    'sound'     = 'kernel/drivers/sound.c'
+    'net'       = 'kernel/drivers/net.c'
+    'idt'       = 'kernel/scheduler/idt.c'
+    'scheduler' = 'kernel/scheduler/scheduler.c'
+    'kernel'    = 'kernel/core/kernel.c'
+}
+
+$moduleOrder = @('memory', 'graphics', 'font', 'window', 'mouse', 'sound', 'net', 'idt', 'scheduler', 'kernel')
 $objFiles = @()
 
-foreach ($module in $modules) {
-    Write-Host "Compiling kernel/${module}.c..." -ForegroundColor Gray
-    gcc -m32 -ffreestanding -c "kernel/${module}.c" -o "build/${module}.o"
+foreach ($module in $moduleOrder) {
+    $srcPath = $modules[$module]
+    Write-Host "Compiling ${srcPath}..." -ForegroundColor Gray
+    gcc -m32 -ffreestanding -Ikernel/core -Ikernel/memory -Ikernel/graphics -Ikernel/drivers -Ikernel/scheduler -c $srcPath -o "build/${module}.o"
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to compile kernel/${module}.c"
+        Write-Error "Failed to compile ${srcPath}"
         Exit 1
     }
     $objFiles += "build/${module}.o"
@@ -65,7 +89,7 @@ Write-Host 'All kernel C modules compiled successfully!' -ForegroundColor Green
 # 6. Link bootloader and kernel using linker.ld
 Write-Host 'Linking Kernel binary segments together...' -ForegroundColor Cyan
 # We use standard Windows PE link with --image-base 0 to override default base address constraints
-ld -m i386pe -T kernel/linker.ld -o build/kernel.pe build/entry.o $objFiles --image-base 0
+ld -m i386pe -T kernel/core/linker.ld -o build/kernel.pe build/entry.o build/interrupt.o $objFiles --image-base 0
 if ($LASTEXITCODE -ne 0) {
     Write-Error 'Failed to link kernel into PE object.'
     Exit 1
