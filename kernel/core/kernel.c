@@ -16,6 +16,7 @@
 #include "net.h"
 #include "../scheduler/idt.h"
 #include "../scheduler/scheduler.h"
+#include "garden.h"
 
 // Scancode to US Keyboard ASCII mapping array (32-bit flat compatible)
 static const char scancode_to_ascii[] = {
@@ -28,6 +29,19 @@ static const char scancode_to_ascii[] = {
 // Global interactive shell buffer states
 static char shell_buffer[256];
 static int shell_len = 0;
+
+static char garden_buffer[512];
+static char notes_buffer[1024];
+static char show_garden = 0;
+
+static void helper_strcpy(char* dest, const char* src) {
+    int i = 0;
+    while (src[i] != '\0') {
+        dest[i] = src[i];
+        i++;
+    }
+    dest[i] = '\0';
+}
 
 // Context memory history buffer
 static char cmd_history[5][32];
@@ -266,10 +280,13 @@ void kernel_main(unsigned int* vesa_framebuffer) {
     Window win_diag;
     Window win_notes;
     Window win_shell;
+    Window win_garden;
+
+    init_garden();
 
     init_window(&win_diag, 40, 70, 320, 210, "System Diagnostics", diag_buffer);
 
-    init_window(&win_notes, 440, 70, 320, 210, "Calm Notes",
+    helper_strcpy(notes_buffer,
                 "WELCOME TO SUNSET OS\n"
                 "Watching natural sunsets brings\n"
                 "peace, motivation and focus.\n\n"
@@ -278,9 +295,13 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 "in a serene computing environment.\n\n"
                 "Breathe in. Rest. Reflect.");
 
+    init_window(&win_notes, 440, 70, 320, 210, "Calm Notes", notes_buffer);
+
     clear_shell();
     init_window(&win_shell, 180, 300, 440, 220, "Sunset Shell Interface", shell_buffer);
     win_shell.active = 1; // Shell window active at boot
+
+    init_window(&win_garden, 220, 150, 360, 240, "Zen Garden Sandbox", garden_buffer);
 
     // State trackers for signature idle breathing Ambient Mode
     unsigned int idle_timer = 0;
@@ -321,7 +342,16 @@ void kernel_main(unsigned int* vesa_framebuffer) {
             idle_timer = 0;
             is_ambient = 0;
             
-            if (ascii == '\b') {
+            if (show_garden && win_garden.active) {
+                if (ascii == 27 || ascii == 'q' || ascii == 'Q') {
+                    show_garden = 0;
+                    win_garden.active = 0;
+                    win_shell.active = 1;
+                } else {
+                    handle_garden_input(ascii);
+                    draw_garden_content(garden_buffer);
+                }
+            } else if (ascii == '\b') {
                 // Disallow removing standard shell prompt prefix
                 if (shell_len > 32) {
                     shell_len--;
@@ -347,7 +377,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 if (cmd_idx == 0) {
                     append_to_shell("\nsunset-OS:~$ ");
                 } else if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
-                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url]");
+                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3]");
                     append_to_shell("\nsunset-OS:~$ ");
                 } else if (cmd[0] == 'i' && cmd[1] == 'f' && cmd[2] == 'c' && cmd[3] == 'o' && cmd[4] == 'n' && cmd[5] == 'f' && cmd[6] == 'i' && cmd[7] == 'g') {
                     char out_buf[1024];
@@ -420,6 +450,69 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     append_to_shell("\nInitiating breathing Ambient OS Mode...");
                     is_ambient = 1;
                     idle_timer = 500000; // Trigger threshold instantly
+                } else if (cmd[0] == 'g' && cmd[1] == 'a' && cmd[2] == 'r' && cmd[3] == 'd' && cmd[4] == 'e' && cmd[5] == 'n') {
+                    append_to_shell("\nSpawning Zen Garden sandbox window...");
+                    show_garden = 1;
+                    win_diag.active = 0;
+                    win_notes.active = 0;
+                    win_shell.active = 0;
+                    win_garden.active = 1;
+                    draw_garden_content(garden_buffer);
+                    append_to_shell("\nsunset-OS:~$ ");
+                } else if (cmd[0] == 'n' && cmd[1] == 'o' && cmd[2] == 't' && cmd[3] == 'e') {
+                    int idx = 4;
+                    while (cmd[idx] == ' ') idx++;
+                    if (cmd[idx] != '\0') {
+                        int notes_len = 0;
+                        while (notes_buffer[notes_len] != '\0') {
+                            notes_len++;
+                        }
+                        if (notes_len < 900) {
+                            notes_buffer[notes_len++] = '\n';
+                            notes_buffer[notes_len++] = '-';
+                            notes_buffer[notes_len++] = ' ';
+                            int k = idx;
+                            while (cmd[k] != '\0' && notes_len < 1020) {
+                                notes_buffer[notes_len++] = cmd[k++];
+                            }
+                            notes_buffer[notes_len] = '\0';
+                            append_to_shell("\nNote appended to Calm Notes.");
+                        } else {
+                            append_to_shell("\nNotes buffer is full.");
+                        }
+                    } else {
+                        append_to_shell("\nUsage: note [message]\nExample: note take a deep breath");
+                    }
+                    append_to_shell("\nsunset-OS:~$ ");
+                } else if (cmd[0] == 'l' && cmd[1] == 'o' && cmd[2] == 'f' && cmd[3] == 'i') {
+                    int idx = 4;
+                    while (cmd[idx] == ' ') idx++;
+                    int preset = cmd[idx] - '0';
+                    if (preset == 1) {
+                        append_to_shell("\nPlaying tranquility arpeggio...");
+                        play_tone(440); sleep_ms(150);
+                        play_tone(554); sleep_ms(150);
+                        play_tone(659); sleep_ms(150);
+                        play_tone(880); sleep_ms(250);
+                        stop_tone();
+                    } else if (preset == 2) {
+                        append_to_shell("\nPlaying serenity breeze...");
+                        play_tone(523); sleep_ms(150);
+                        play_tone(659); sleep_ms(150);
+                        play_tone(784); sleep_ms(150);
+                        play_tone(1046); sleep_ms(250);
+                        stop_tone();
+                    } else if (preset == 3) {
+                        append_to_shell("\nPlaying golden sunset chord...");
+                        play_tone(349); sleep_ms(150);
+                        play_tone(440); sleep_ms(150);
+                        play_tone(523); sleep_ms(150);
+                        play_tone(698); sleep_ms(250);
+                        stop_tone();
+                    } else {
+                        append_to_shell("\nUsage: lofi [1-3]\nPresets: 1 (Tranquility), 2 (Serenity), 3 (Golden Sunset)");
+                    }
+                    append_to_shell("\nsunset-OS:~$ ");
                 } else if (cmd[0] == 'p' && cmd[1] == 'a' && cmd[2] == 'n' && cmd[3] == 'i' && cmd[4] == 'c') {
                     kpanic("USER TRIGGERED CORE EXCEPTION PANIC");
                 } else {
@@ -479,6 +572,9 @@ void kernel_main(unsigned int* vesa_framebuffer) {
             handle_window_dragging(&win_diag, mouse_x, mouse_y, mouse_left_clicked);
             handle_window_dragging(&win_notes, mouse_x, mouse_y, mouse_left_clicked);
             handle_window_dragging(&win_shell, mouse_x, mouse_y, mouse_left_clicked);
+            if (show_garden) {
+                handle_window_dragging(&win_garden, mouse_x, mouse_y, mouse_left_clicked);
+            }
 
             // 2. Window active focus layering sorting
             if (mouse_left_clicked) {
@@ -486,14 +582,22 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     win_diag.active = 1;
                     win_notes.active = 0;
                     win_shell.active = 0;
+                    win_garden.active = 0;
                 } else if (win_notes.is_dragging) {
                     win_diag.active = 0;
                     win_notes.active = 1;
                     win_shell.active = 0;
+                    win_garden.active = 0;
                 } else if (win_shell.is_dragging) {
                     win_diag.active = 0;
                     win_notes.active = 0;
                     win_shell.active = 1;
+                    win_garden.active = 0;
+                } else if (show_garden && win_garden.is_dragging) {
+                    win_diag.active = 0;
+                    win_notes.active = 0;
+                    win_shell.active = 0;
+                    win_garden.active = 1;
                 }
             }
 
@@ -504,14 +608,22 @@ void kernel_main(unsigned int* vesa_framebuffer) {
             if (win_shell.active) {
                 draw_window(&win_diag);
                 draw_window(&win_notes);
+                if (show_garden) draw_window(&win_garden);
                 draw_window(&win_shell);
             } else if (win_notes.active) {
                 draw_window(&win_diag);
                 draw_window(&win_shell);
+                if (show_garden) draw_window(&win_garden);
                 draw_window(&win_notes);
+            } else if (show_garden && win_garden.active) {
+                draw_window(&win_diag);
+                draw_window(&win_notes);
+                draw_window(&win_shell);
+                draw_window(&win_garden);
             } else {
                 draw_window(&win_shell);
                 draw_window(&win_notes);
+                if (show_garden) draw_window(&win_garden);
                 draw_window(&win_diag);
             }
 

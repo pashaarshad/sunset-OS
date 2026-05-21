@@ -63,6 +63,7 @@ $modules = @{
     'graphics'  = 'kernel/graphics/graphics.c'
     'font'      = 'kernel/graphics/font.c'
     'window'    = 'kernel/graphics/window.c'
+    'garden'    = 'kernel/graphics/garden.c'
     'mouse'     = 'kernel/drivers/mouse.c'
     'sound'     = 'kernel/drivers/sound.c'
     'net'       = 'kernel/drivers/net.c'
@@ -71,7 +72,7 @@ $modules = @{
     'kernel'    = 'kernel/core/kernel.c'
 }
 
-$moduleOrder = @('memory', 'graphics', 'font', 'window', 'mouse', 'sound', 'net', 'idt', 'scheduler', 'kernel')
+$moduleOrder = @('memory', 'graphics', 'font', 'window', 'garden', 'mouse', 'sound', 'net', 'idt', 'scheduler', 'kernel')
 $objFiles = @()
 
 foreach ($module in $moduleOrder) {
