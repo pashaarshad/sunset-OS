@@ -48,7 +48,7 @@ Write-Host 'Kernel entry stub assembled successfully!' -ForegroundColor Green
 # 5. Compile C Kernel Modular Files
 Write-Host 'Compiling C Kernel modular source files...' -ForegroundColor Cyan
 
-$modules = @('memory', 'graphics', 'font', 'mouse', 'window', 'sound', 'kernel')
+$modules = @('memory', 'graphics', 'font', 'mouse', 'window', 'sound', 'net', 'kernel')
 $objFiles = @()
 
 foreach ($module in $modules) {
@@ -112,6 +112,6 @@ if (-not (Get-Command qemu-system-x86_64 -ErrorAction SilentlyContinue)) {
 } else {
     Write-Host 'Booting Sunset OS inside QEMU Emulator...' -ForegroundColor Cyan
     
-    # Launch QEMU Emulator
-    qemu-system-x86_64 -drive format=raw,file=build/sunset_os.img
+    # Launch QEMU Emulator as a Floppy Disk with explicit format
+    qemu-system-x86_64 -drive format=raw,file=build/sunset_os.img,if=floppy
 }

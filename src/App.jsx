@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Terminal as TermIcon, Folder, FileText, Music, Sparkles, Sun, Moon, TreePine, 
-  Cpu, HardDrive, Wifi, Volume2, Calendar, Clock, RefreshCw 
+  Cpu, HardDrive, Wifi, Volume2, Calendar, Clock, RefreshCw, Globe 
 } from 'lucide-react';
 
 import FileManager from './components/FileManager';
@@ -9,6 +9,7 @@ import TextEditor from './components/TextEditor';
 import MediaSuite from './components/MediaSuite';
 import Terminal from './components/Terminal';
 import VoiceAssistant from './components/VoiceAssistant';
+import Browser from './components/Browser';
 
 import bgImage from './assets/sunset_bg.png';
 
@@ -29,8 +30,10 @@ export default function App() {
     texteditor: false,
     mediasuite: false,
     terminal: false,
-    voiceassistant: true // Voice Assistant open by default for helpfulness
+    voiceassistant: true, // Voice Assistant open by default for helpfulness
+    browser: false
   });
+  const [browserUrl, setBrowserUrl] = useState('sunset://gardens');
 
   const [activeApp, setActiveApp] = useState('voiceassistant');
   const [selectedFileId, setSelectedFileId] = useState(null);
@@ -42,7 +45,8 @@ export default function App() {
     texteditor: { x: 260, y: 80 },
     mediasuite: { x: 180, y: 150 },
     terminal: { x: 120, y: 220 },
-    voiceassistant: { x: 550, y: 90 }
+    voiceassistant: { x: 550, y: 90 },
+    browser: { x: 220, y: 120 }
   });
 
   const [activeDragApp, setActiveDragApp] = useState(null);
@@ -168,7 +172,17 @@ export default function App() {
         toggleAmbientMusic(false);
         break;
       case 'open_app':
-        openApp(payload);
+        if (payload === 'browser') {
+          openApp('browser');
+        } else {
+          openApp(payload);
+        }
+        break;
+      case 'open_browser':
+        if (payload) {
+          setBrowserUrl(payload);
+        }
+        openApp('browser');
         break;
       case 'refresh_files':
         // VFS file manager reload is reactive via LocalStorage listeners
@@ -324,6 +338,14 @@ export default function App() {
             <TermIcon className="w-8 h-8 text-emerald-400 drop-shadow-md group-hover:scale-105 transition-transform" />
             <span className="text-[10px] font-semibold text-white/90 group-hover:text-orange-300">Sunset Shell</span>
           </div>
+
+          <div 
+            onClick={() => openApp('browser')}
+            className="flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl hover:bg-white/5 cursor-pointer text-center group transition-colors duration-200"
+          >
+            <Globe className="w-8 h-8 text-blue-400 drop-shadow-md group-hover:scale-105 transition-transform" />
+            <span className="text-[10px] font-semibold text-white/90 group-hover:text-orange-300">Zen Browser</span>
+          </div>
         </div>
 
         {/* 💡 PERSISTENT DESKTOP WIDGET */}
@@ -446,6 +468,7 @@ export default function App() {
                 openVoiceAssistant={() => openApp('voiceassistant')}
                 changeDesktopTheme={(themeName) => setTheme(themeName)}
                 openTextEditor={(id) => openApp('texteditor', id)}
+                triggerSystemAction={triggerSystemAction}
               />
             </div>
           </div>
@@ -468,6 +491,27 @@ export default function App() {
             </div>
             <div className="window-body">
               <VoiceAssistant triggerSystemAction={triggerSystemAction} />
+            </div>
+          </div>
+        )}
+
+        {/* 6. ZEN WEB BROWSER APP */}
+        {openApps.browser && (
+          <div 
+            className={`app-window glass-panel w-[580px] h-[410px] ${activeApp === 'browser' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
+            style={{ left: `${winPositions.browser.x}px`, top: `${winPositions.browser.y}px` }}
+            onClick={() => bringToFront('browser')}
+          >
+            <div className="window-header" onMouseDown={(e) => startDrag('browser', e)}>
+              <span className="window-title text-blue-300"><Globe className="w-4 h-4" /> Zen Browser</span>
+              <div className="window-actions">
+                <button className="window-action-btn window-btn-minimize" />
+                <button className="window-action-btn window-btn-maximize" />
+                <button className="window-action-btn window-btn-close" onClick={(e) => closeApp('browser', e)} />
+              </div>
+            </div>
+            <div className="window-body">
+              <Browser initialUrl={browserUrl} />
             </div>
           </div>
         )}
@@ -509,6 +553,14 @@ export default function App() {
             title="Console Shell"
           >
             <TermIcon className="w-5 h-5 text-emerald-400" />
+          </div>
+
+          <div 
+            onClick={() => openApp('browser')}
+            className={`taskbar-icon relative ${openApps.browser ? 'active bg-white/10' : ''}`}
+            title="Zen Browser"
+          >
+            <Globe className="w-5 h-5 text-blue-300" />
           </div>
 
           <span className="w-px h-6 bg-white/10 mx-1"></span>

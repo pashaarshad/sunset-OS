@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openTextEditor }) {
+export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openTextEditor, triggerSystemAction }) {
   const [history, setHistory] = useState([
     { text: "Welcome to SunsetSH (Sunset OS Shell) v0.1", type: "system" },
     { text: "Type 'help' to list available system commands.", type: "info" },
@@ -89,6 +89,9 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           { text: "  cat [file]  - Display contents of a text file.", type: "text" },
           { text: "  create [file] [msg] - Create a text file with message.", type: "text" },
           { text: "  rm [file]   - Remove/Delete a file.", type: "text" },
+          { text: "  ifconfig    - Render mock active/loopback network interfaces.", type: "text" },
+          { text: "  ping [ip]   - Send simulated ICMP echo request ping packets.", type: "text" },
+          { text: "  fetch [url] - Serene resource retrieve (auto-launches Zen Browser).", type: "text" },
           { text: "  chime       - Replay hardware-level PIT startup melody.", type: "text" },
           { text: "  play [f] [t]- Play a customized square tone frequency in Hz.", type: "text" },
           { text: "  about       - Discover the Sunset OS naming story.", type: "text" },
@@ -305,6 +308,114 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
         setIsMatrixActive(true);
         newHistory.push({ text: "[!] Booting system diagnostics in matrix mode. Click shell screen to close.", type: "success" });
         playCmdChime(true);
+        break;
+
+      case 'ifconfig':
+        newHistory.push(
+          { text: "\nlo0: flags=UP,LOOPBACK mtu 65536", type: "success" },
+          { text: "     inet 127.0.0.1 netmask 255.0.0.0", type: "text" },
+          { text: "     status: ACTIVE, speed: 10 Gbps", type: "text" },
+          { text: "     RX packets: 42, TX packets: 42", type: "text" },
+          { text: "     RX bytes: 3360, TX bytes: 3360\n", type: "text" },
+          { text: "eth0: flags=UP,BROADCAST,RUNNING mtu 1500", type: "success" },
+          { text: "     inet 192.168.1.53 netmask 255.255.255.0 gateway 192.168.1.1", type: "text" },
+          { text: "     status: ACTIVE, speed: 100 Mbps", type: "text" },
+          { text: "     RX packets: 1205, TX packets: 874", type: "text" },
+          { text: "     RX bytes: 142012, TX bytes: 93240", type: "text" }
+        );
+        playCmdChime(true);
+        break;
+
+      case 'ping':
+        if (args.length === 0) {
+          newHistory.push({ text: "Usage: ping [ip]\nExample: ping 8.8.8.8", type: "error" });
+          playCmdChime(false);
+        } else {
+          const ip = args[0];
+          newHistory.push(
+            { text: `PING ${ip} (${ip}) 56(84) bytes of data.`, type: "info" },
+            { text: `64 bytes from ${ip}: icmp_seq=1 ttl=64 time=14ms`, type: "text" },
+            { text: `64 bytes from ${ip}: icmp_seq=2 ttl=64 time=18ms`, type: "text" },
+            { text: `64 bytes from ${ip}: icmp_seq=3 ttl=64 time=11ms`, type: "text" },
+            { text: `64 bytes from ${ip}: icmp_seq=4 ttl=64 time=15ms`, type: "text" },
+            { text: `\n--- ${ip} ping statistics ---`, type: "info" },
+            { text: `4 packets transmitted, 4 received, 0% packet loss, time 54ms`, type: "success" }
+          );
+          playCmdChime(true);
+        }
+        break;
+
+      case 'fetch':
+        if (args.length === 0) {
+          newHistory.push({ text: "Usage: fetch [url]\nExample: fetch sunset://rest", type: "error" });
+          playCmdChime(false);
+        } else {
+          const urlStr = args[0];
+          newHistory.push(
+            { text: `Connecting to ${urlStr}... HTTP/1.1 200 OK`, type: "info" }
+          );
+          
+          if (urlStr === 'sunset://rest') {
+            newHistory.push(
+              { text: "   * * *   🌅 SUNSET BREATHING STATION 🌅   * * *", type: "logo" },
+              { text: "         Breathe in the golden rays...", type: "text" },
+              { text: "                 .-~~~~~~~~~-.", type: "text" },
+              { text: "             .-'               '-.", type: "text" },
+              { text: "           .'                     '.", type: "text" },
+              { text: "          /                         \\", type: "text" },
+              { text: "         |                           |", type: "text" },
+              { text: "         |         *   *   *         |", type: "text" },
+              { text: "         |       *           *       |", type: "text" },
+              { text: "         |      *    INHALING   *      |", type: "text" },
+              { text: "          \\      *   (8s hold) *    /", type: "text" },
+              { text: "           '.     *           *   .'", type: "text" },
+              { text: "             '-.     * * *     .-'", type: "text" },
+              { text: "                 '-~~~~~~~~~-'", type: "text" },
+              { text: "         Breathe out the purple dusk.", type: "text" }
+            );
+          } else if (urlStr === 'sunset://gardens') {
+            newHistory.push(
+              { text: "   * * *   🌸 SUNSET ZEN GARDENS 🌸   * * *", type: "logo" },
+              { text: "         A grid of calm, beauty, and peace.", type: "text" },
+              { text: "        +-----+-----+-----+-----+-----+", type: "text" },
+              { text: "        | .   | Sakura | .   |  .  | Lavender |", type: "text" },
+              { text: "        +-----+-----+-----+-----+-----+", type: "text" },
+              { text: "        | .   |  .  | Lily| .   |  .  |", type: "text" },
+              { text: "        +-----+-----+-----+-----+-----+", type: "text" },
+              { text: "        | Sakura | .  |  .  |  .  | Lily|", type: "text" },
+              { text: "        +-----+-----+-----+-----+-----+", type: "text" },
+              { text: "        | .   | Lavender | . | Sakura | . |", type: "text" },
+              { text: "        +-----+-----+-----+-----+-----+", type: "text" }
+            );
+          } else if (urlStr === 'sunset://clouds') {
+            newHistory.push(
+              { text: "   * * *   ☁️ SUNSET CLOUD VISUALIZER ☁️   * * *", type: "logo" },
+              { text: "       Gentle atmospheric patterns in the sky.", type: "text" },
+              { text: "                  _  _", type: "text" },
+              { text: "                ( `   )_", type: "text" },
+              { text: "               (    )   `)", type: "text" },
+              { text: "             (_   (_(_ . _) _)", type: "text" },
+              { text: "                 _  _", type: "text" },
+              { text: "               (  `   )", type: "text" },
+              { text: "              (  (     )  )", type: "text" },
+              { text: "             (__________`_)", type: "text" }
+            );
+          } else {
+            newHistory.push(
+              { text: "Resolved mock external host via SunsetDNS.", type: "info" },
+              { text: "[Serene Resource List]", type: "info" },
+              { text: "1. nature.org - Explore nature preserves", type: "text" },
+              { text: "2. calm.com - Serene breathing spaces", type: "text" },
+              { text: "3. github.com/sunset-OS - View sources", type: "text" }
+            );
+          }
+          
+          if (triggerSystemAction) {
+            newHistory.push({ text: `[+] Launching Zen Browser redirected to ${urlStr}...`, type: "success" });
+            triggerSystemAction('open_browser', urlStr);
+          }
+          playCmdChime(true);
+        }
         break;
 
       case 'clear':

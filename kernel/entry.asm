@@ -1,7 +1,7 @@
 ; =====================================================================
 ; Sunset OS (Ghuroob OS) — LAZ Kernel 32-bit Entry Stub
 ; File: kernel/entry.asm
-; Description: Guaranteed first code at 0x1000. Forwards the bootloader's
+; Description: Guaranteed first code at 0x10000. Forwards the bootloader's
 ;              stack frame (VESA LFB address argument) directly to
 ;              kernel_main in the C kernel without altering the stack.
 ; =====================================================================
@@ -11,7 +11,7 @@
 
 ; The bootloader executed:
 ;   push dword [VESA_LFB_ADDRESS]
-;   call KERNEL_OFFSET            ; KERNEL_OFFSET = 0x1000
+;   call KERNEL_OFFSET            ; KERNEL_OFFSET = 0x10000
 ;
 ; Stack layout when we arrive here:
 ;   [esp]   = return address (from bootloader's CALL)

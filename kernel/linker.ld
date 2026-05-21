@@ -9,7 +9,7 @@ ENTRY(kernel_main)
 
 SECTIONS
 {
-    . = 0x1000;          /* Relocate kernel segments starting at 0x1000 */
+    . = 0x10000;          /* Relocate kernel segments starting at 0x10000 (64KB) */
 
     .text :              /* Text segment (instructions) */
     {

@@ -11,6 +11,7 @@
 #include "mouse.h"
 #include "window.h"
 #include "sound.h"
+#include "net.h"
 
 // Scancode to US Keyboard ASCII mapping array (32-bit flat compatible)
 static const char scancode_to_ascii[] = {
@@ -60,6 +61,9 @@ static void delay(int count) {
 void kernel_main(unsigned int* vesa_framebuffer) {
     // 1. Initialize Memory safety layers first
     init_memory();
+
+    // Initialize Network stack configuration
+    init_net();
 
     // 2. Initialize VESA graphics drivers
     init_graphics((unsigned char*)vesa_framebuffer);
@@ -169,8 +173,35 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         if (cmd_idx == 0) {
                             append_to_shell("\nsunset-OS:~$ ");
                         } else if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
-                            append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history");
+                            append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url]");
                             append_to_shell("\nsunset-OS:~$ ");
+                        } else if (cmd[0] == 'i' && cmd[1] == 'f' && cmd[2] == 'c' && cmd[3] == 'o' && cmd[4] == 'n' && cmd[5] == 'f' && cmd[6] == 'i' && cmd[7] == 'g') {
+                            char out_buf[1024];
+                            net_ifconfig(out_buf, 1024);
+                            append_to_shell(out_buf);
+                            append_to_shell("sunset-OS:~$ ");
+                        } else if (cmd[0] == 'p' && cmd[1] == 'i' && cmd[2] == 'n' && cmd[3] == 'g') {
+                            int idx = 4;
+                            while (cmd[idx] == ' ') idx++;
+                            if (cmd[idx] != '\0') {
+                                char out_buf[1024];
+                                net_ping(cmd + idx, out_buf, 1024);
+                                append_to_shell(out_buf);
+                            } else {
+                                append_to_shell("\nUsage: ping [ip]\nExample: ping 8.8.8.8\n");
+                            }
+                            append_to_shell("sunset-OS:~$ ");
+                        } else if (cmd[0] == 'f' && cmd[1] == 'e' && cmd[2] == 't' && cmd[3] == 'c' && cmd[4] == 'h') {
+                            int idx = 5;
+                            while (cmd[idx] == ' ') idx++;
+                            if (cmd[idx] != '\0') {
+                                char out_buf[1024];
+                                net_fetch(cmd + idx, out_buf, 1024);
+                                append_to_shell(out_buf);
+                            } else {
+                                append_to_shell("\nUsage: fetch [url]\nExample: fetch sunset://rest\n");
+                            }
+                            append_to_shell("sunset-OS:~$ ");
                         } else if (cmd[0] == 'c' && cmd[1] == 'l' && cmd[2] == 'e' && cmd[3] == 'a' && cmd[4] == 'r') {
                             clear_shell();
                         } else if (cmd[0] == 'c' && cmd[1] == 'h' && cmd[2] == 'i' && cmd[3] == 'm' && cmd[4] == 'e') {

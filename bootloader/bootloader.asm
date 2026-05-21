@@ -9,7 +9,7 @@
 
 [org 0x7C00]          ; BIOS loads the boot sector here
 
-KERNEL_OFFSET equ 0x1000 ; Memory offset where we will load our C kernel
+KERNEL_OFFSET equ 0x10000 ; Memory offset where we will load our C kernel
 
 start:
     ; 1. Initialize Segment Registers and Stack
@@ -105,29 +105,128 @@ load_kernel:
     mov si, msg_disk
     call print_string
 
-    mov ah, 0x02      ; BIOS Read Sector function
-    mov al, 50        ; Read 50 sectors (25KB - allows space for larger C graphics modules)
-    mov ch, 0         ; Cylinder 0
-    mov dh, 0         ; Head 0
-    mov cl, 2         ; Start reading at sector 2 (immediately after boot sector)
-    mov dl, [BOOT_DRIVE] ; Use the saved boot drive number
-    mov bx, KERNEL_OFFSET ; Destination address: ES:BX = 0x0000:0x1000
+    ; 1. Query drive parameters to support both Floppy (QEMU -fda) and Hard Disk (QEMU -drive)
+    push es
+    xor ax, ax
+    mov es, ax
+    mov di, ax                    ; ES:DI = 0:0
+    mov ah, 0x08
+    mov dl, [BOOT_DRIVE]
     int 0x13
-    jc disk_error     ; Jump if carry flag set (disk read failed)
+    pop es
+    jc .use_default_spt           ; On failure, fall back to standard floppy parameters
+
+    ; Extract sectors per track (cl bits 0-5)
+    mov al, cl
+    and al, 0x3F                  ; AL = SPT
+    jz .use_default_spt           ; If SPT is 0, fall back
+    mov [SECTORS_PER_TRACK], al
+
+    ; Extract number of heads (dh is max head index, so heads = dh + 1)
+    inc dh
+    mov [HEADS], dh
+    jmp .start_read
+
+.use_default_spt:
+    mov byte [SECTORS_PER_TRACK], 18
+    mov byte [HEADS], 2
+
+.start_read:
+    ; Set ES = 0x1000 and BX = 0x0000 to load kernel at physical address 0x10000 (64KB)
+    mov ax, 0x1000
+    mov es, ax
+    xor bx, bx
+
+    ; We want to read 80 sectors starting from LBA = 1 (Sector 2)
+    mov bp, 80                    ; BP will be our sector loop counter (read 80 sectors = 40KB headroom)
+    mov word [CURRENT_LBA], 1     ; Start reading from LBA = 1 (Sector 2)
+
+.read_sector_loop:
+    ; Convert LBA to CHS
+    mov ax, [CURRENT_LBA]
+    call lba_to_chs
+
+    ; Call BIOS Read Sector (1 sector)
+    mov ah, 0x02                  ; BIOS Read Sector function
+    mov al, 1                     ; Read exactly 1 sector
+    mov dl, [BOOT_DRIVE]          ; Use the saved boot drive number
+    int 0x13
+    jc .disk_retry                ; If failed, try resetting disk and retrying
+
+.read_ok:
+    ; Increment destination buffer by 512 bytes for the next sector
+    add bx, 512
+    ; Increment linear sector LBA index
+    inc word [CURRENT_LBA]
+    ; Decrement sector loop counter
+    dec bp
+    jnz .read_sector_loop
+
+    ; Restore ES to 0x0000 for other BIOS and video routines
+    xor ax, ax
+    mov es, ax
 
     mov si, msg_disk_ok
     call print_string
     ret
 
+.disk_retry:
+    ; Reset disk controller (function 0)
+    xor ax, ax
+    mov dl, [BOOT_DRIVE]
+    int 0x13
+    
+    ; Retry the same read once more
+    mov ax, [CURRENT_LBA]
+    call lba_to_chs
+    mov ah, 0x02
+    mov al, 1
+    mov dl, [BOOT_DRIVE]
+    int 0x13
+    jnc .read_ok                  ; If it works this time, continue
+
+    ; If it fails twice, halt
+    jmp disk_error
+
+; Convert LBA to CHS (Cylinder, Head, Sector) coordinates dynamically
+; Input: AX = LBA
+; Output:
+;   CH = Cylinder (C)
+;   DH = Head (H)
+;   CL = Sector (S)
+lba_to_chs:
+    push bx
+    push ax
+    
+    xor dx, dx                    ; dx:ax = LBA
+    xor bx, bx
+    mov bl, [SECTORS_PER_TRACK]   ; Use dynamically queried SPT
+    div bx                        ; ax = LBA / SPT, dx = LBA % SPT
+    
+    inc dx                        ; Sector is 1-based: (LBA % SPT) + 1
+    mov cl, dl                    ; CL = Sector
+    
+    xor dx, dx                    ; dx:ax = Temp (LBA / SPT)
+    xor bx, bx
+    mov bl, [HEADS]               ; Use dynamically queried HEADS
+    div bx                        ; ax = Temp / HEADS (Cylinder), dx = Temp % HEADS (Head)
+    
+    mov ch, al                    ; CH = Cylinder
+    mov dh, dl                    ; DH = Head
+    
+    pop ax
+    pop bx
+    ret
+
 disk_error:
     mov si, msg_disk_fail
     call print_string
-    jmp $             ; Hang on failure
+    jmp $                         ; Hang on failure
 
 vesa_error:
     mov si, msg_vesa_fail
     call print_string
-    jmp $             ; Hang on failure
+    jmp $                         ; Hang on failure
 
 ; =====================================================================
 ; GLOBAL DESCRIPTOR TABLE (GDT) DEFINITION
@@ -195,13 +294,16 @@ init_pm:
 ; BOOT SECTOR DATA
 ; =====================================================================
 BOOT_DRIVE       db 0           ; Store boot drive number here
+SECTORS_PER_TRACK db 18         ; Dynamic or fallback Sectors Per Track
+HEADS             db 2          ; Dynamic or fallback Heads
+CURRENT_LBA      dw 0           ; Store current sector offset during load
 VESA_LFB_ADDRESS dd 0           ; Store 32-bit physical address of Linear Frame Buffer
-msg_loading      db 'Sunset OS Booting...', 13, 10, 0
-msg_disk         db 'Loading kernel...', 13, 10, 0
-msg_disk_ok      db 'Kernel OK.', 13, 10, 0
-msg_vesa_init    db 'VESA VBE Init...', 13, 10, 0
-msg_disk_fail    db 'Disk Error!', 13, 10, 0
-msg_vesa_fail    db 'VESA 800x600x24 Unsupported!', 13, 10, 0
+msg_loading      db 'Sunset OS...', 13, 10, 0
+msg_disk         db 'Booting...', 13, 10, 0
+msg_disk_ok      db 'OK.', 13, 10, 0
+msg_vesa_init    db 'VESA...', 13, 10, 0
+msg_disk_fail    db 'Disk Err!', 13, 10, 0
+msg_vesa_fail    db 'VESA Err!', 13, 10, 0
 
 times 510-($-$$) db 0 ; Pad remaining sector with zeros
 dw 0xAA55             ; Boot magic signature

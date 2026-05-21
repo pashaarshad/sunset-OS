@@ -133,6 +133,28 @@ export default function VoiceAssistant({ triggerSystemAction }) {
       triggerSystemAction('open_app', 'texteditor');
       reply = "Launching distraction-free Text Editor. Write down your sunset thoughts.";
     } 
+    else if (cleanCmd.includes("open browser") || cleanCmd.includes("show browser") || cleanCmd.includes("zen browser")) {
+      triggerSystemAction('open_browser', 'sunset://gardens');
+      reply = "Opening Zen Browser. Welcome to the Zen Meditation Garden.";
+    }
+    else if (cleanCmd.includes("zen garden") || cleanCmd.includes("go to zen garden") || cleanCmd.includes("open garden")) {
+      triggerSystemAction('open_browser', 'sunset://gardens');
+      reply = "Right away. Taking you to the Zen Meditation Garden. Breathe in and enjoy planting Sakura seeds.";
+    }
+    else if (cleanCmd.includes("breathing exercise") || cleanCmd.includes("show rest exercise") || cleanCmd.includes("guided breathing") || cleanCmd.includes("rest exercise") || cleanCmd.includes("open rest")) {
+      triggerSystemAction('open_browser', 'sunset://rest');
+      reply = "Sure. Starting the guided sunset breathing exercise. Relax your posture and follow the pulsing orange bubble.";
+    }
+    else if (cleanCmd.includes("clouds") || cleanCmd.includes("open clouds") || cleanCmd.includes("show sky")) {
+      triggerSystemAction('open_browser', 'sunset://clouds');
+      reply = "Opening sky visualizer. Let's watch the calming clouds move.";
+    }
+    else if (cleanCmd.includes("ping") || cleanCmd.includes("check internet") || cleanCmd.includes("diagnostic")) {
+      let dest = "8.8.8.8";
+      const match = cleanCmd.match(/ping\s+([a-zA-Z0-9.]+)/);
+      if (match) dest = match[1];
+      reply = `Performing network check pinging simulated host ${dest}. Connection is stable. All packets successfully processed with average 14 milliseconds round trip time.`;
+    }
     else if (cleanCmd.includes("motivate") || cleanCmd.includes("quote") || cleanCmd.includes("sunset")) {
       const idx = Math.floor(Math.random() * quotes.length);
       reply = quotes[idx];
