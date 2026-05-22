@@ -91,7 +91,10 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
     if (!trimmed) return;
 
     const parts = trimmed.split(' ');
-    const command = parts[0].toLowerCase();
+    let command = parts[0].toLowerCase();
+    if (command.startsWith('/')) {
+      command = command.slice(1);
+    }
     const args = parts.slice(1);
 
     const promptPrefix = `ghuroob@sunset:/${cwd}$ `;
@@ -128,6 +131,7 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           { text: "  garden      - Spawn Zen Garden sandbox view.", type: "text" },
           { text: "  note [msg]  - Append a formatted note into Calm Notes.", type: "text" },
           { text: "  lofi [1-3]  - Play distinct relaxing multi-note arpeggios.", type: "text" },
+          { text: "  time        - Display current system date and time.", type: "text" },
           { text: "  clear       - Clear screen logs.", type: "text" }
         );
         playCmdChime(true);
@@ -285,6 +289,18 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
         playCmdChime(true);
         break;
       }
+      case 'time': {
+        const now = new Date();
+        const yr = now.getFullYear();
+        const mo = String(now.getMonth() + 1).padStart(2, '0');
+        const dy = String(now.getDate()).padStart(2, '0');
+        const h = String(now.getHours()).padStart(2, '0');
+        const m = String(now.getMinutes()).padStart(2, '0');
+        const s = String(now.getSeconds()).padStart(2, '0');
+        newHistory.push({ text: `Date: ${yr}-${mo}-${dy} | Time: ${h}:${m}:${s} UTC/Local`, type: "text" });
+        playCmdChime(true);
+        break;
+      }
 
       case 'cat': {
         if (args.length === 0) {
@@ -420,8 +436,8 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           { text: "   🌅🌅🌅🌅      Sunset OS (Ghuroob OS)", type: "logo" },
           { text: " 🌅        🌅    ----------------------", type: "logo" },
           { text: "🌅  🌄  🌅  🌅   Host: Arshad Pasha Custom PC", type: "logo" },
-          { text: "🌅    🌅    🌅   OS Name: Sunset OS v0.4 (Stage 4)", type: "logo" },
-          { text: " 🌅        🌅    Kernel Core: LAZ Kernel v0.4 (Sound enabled)", type: "logo" },
+          { text: "🌅    🌅    🌅   OS Name: Sunset OS v0.5 (Stage 5)", type: "logo" },
+          { text: " 🌅        🌅    Kernel Core: LAZ Kernel v0.5 (Sound enabled)", type: "logo" },
           { text: "   🌅🌅🌅🌅      Shell: SunsetSH (Terminal Console)", type: "logo" },
           { text: "                 RAM Usage: 14 MB / 8192 MB (0.1%)", type: "logo" },
           { text: "                 Design Ethos: Calm, Lightweight, Intelligent", type: "logo" }

@@ -158,8 +158,10 @@ load_kernel:
     jc .disk_retry                ; If failed, try resetting disk and retrying
 
 .read_ok:
-    ; Increment destination buffer by 512 bytes for the next sector
-    add bx, 512
+    ; Increment destination segment ES by 32 (512 bytes) to prevent BX register overflow
+    mov ax, es
+    add ax, 32
+    mov es, ax
     ; Increment linear sector LBA index
     inc word [CURRENT_LBA]
     ; Decrement sector loop counter

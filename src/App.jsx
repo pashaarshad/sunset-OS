@@ -637,8 +637,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Ambient audio player quick trigger */}
-        <div className="flex items-center gap-3 pl-4 border-l border-white/10">
+        {/* Ambient audio player quick trigger & Ticking Clock */}
+        <div className="flex items-center gap-4 pl-4 border-l border-white/10">
           <button 
             onClick={() => toggleAmbientMusic(!isAmbientPlaying)}
             className={`p-2 rounded-xl transition-all duration-300 flex items-center gap-1.5 text-xs font-semibold ${isAmbientPlaying ? 'bg-orange-500 text-white shadow-md' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
@@ -646,6 +646,21 @@ export default function App() {
             <Volume2 className={`w-4 h-4 ${isAmbientPlaying ? 'animate-bounce' : ''}`} />
             <span>{isAmbientPlaying ? "Lofi ON" : "Muted"}</span>
           </button>
+
+          <span className="w-px h-6 bg-white/10 mx-1"></span>
+
+          {/* Premium ticking clock mirroring kernel's display */}
+          <div className="flex items-center gap-2 font-mono text-[11px] font-semibold text-orange-400 drop-shadow-[0_0_8px_rgba(249,115,22,0.3)] bg-black/40 px-3 py-1.5 rounded-lg border border-orange-500/20">
+            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+            <span>
+              {(() => {
+                const hh = String(time.getHours()).padStart(2, '0');
+                const mm = String(time.getMinutes()).padStart(2, '0');
+                const ss = String(time.getSeconds()).padStart(2, '0');
+                return `[${hh}:${mm}:${ss}] ONLINE`;
+              })()}
+            </span>
+          </div>
         </div>
 
       </footer>

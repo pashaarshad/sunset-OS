@@ -51,7 +51,7 @@ void draw_garden_content(char* dest_buffer) {
     ptr += 29;
     helper_strcpy(ptr, "  [WASD] Move   [R] Rake   [O] Stone\n");
     ptr += 37;
-    helper_strcpy(ptr, "  [S] Sakura    [C] Clear  [X] Status\n");
+    helper_strcpy(ptr, "  [T] Sakura    [C] Clear  [X] Status\n");
     ptr += 38;
     helper_strcpy(ptr, "  +---------------------------------+\n");
     ptr += 38;

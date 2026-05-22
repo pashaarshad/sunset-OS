@@ -20,6 +20,7 @@
 #include "../scheduler/scheduler.h"
 #include "garden.h"
 #include "vfs.h"
+#include "../drivers/rtc.h"
 
 // Scancode to US Keyboard ASCII mapping array (32-bit flat compatible)
 static const char scancode_to_ascii[] = {
@@ -53,6 +54,27 @@ static void helper_strcpy(char* dest, const char* src) {
         i++;
     }
     dest[i] = '\0';
+}
+
+static void format_time_string(int h, int m, int s, char* out) {
+    out[0] = '[';
+    out[1] = '0' + (h / 10);
+    out[2] = '0' + (h % 10);
+    out[3] = ':';
+    out[4] = '0' + (m / 10);
+    out[5] = '0' + (m % 10);
+    out[6] = ':';
+    out[7] = '0' + (s / 10);
+    out[8] = '0' + (s % 10);
+    out[9] = ']';
+    out[10] = ' ';
+    out[11] = 'O';
+    out[12] = 'N';
+    out[13] = 'L';
+    out[14] = 'I';
+    out[15] = 'N';
+    out[16] = 'E';
+    out[17] = '\0';
 }
 
 // Context memory history buffer
@@ -569,7 +591,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                             "help", "clear", "ambient", "panic", "about", "chime",
                             "play", "history", "ifconfig", "ping", "fetch", "garden",
                             "note", "lofi", "ls", "cat", "touch", "write", "rm",
-                            "mkdir", "cd", "pwd", 0
+                            "mkdir", "cd", "pwd", "time", 0
                         };
                         const char* hit = 0; int cnt = 0;
                         for (int c = 0; cmds[c] != 0; c++) {
@@ -632,7 +654,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 if (cmd_idx == 0) {
                     append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "help") == 0) {
-                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3],\n          ls, cd [dir], cd .., mkdir [dir],\n          pwd, cat [file], touch [file],\n          write [file] [txt], rm [file]");
+                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3],\n          ls, cd [dir], cd .., mkdir [dir],\n          pwd, cat [file], touch [file],\n          write [file] [txt], rm [file],\n          time");
                     append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "ls") == 0) {
                     char file_list[512];
@@ -773,6 +795,49 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     if (cwd[0] != '\0') {
                         append_to_shell(cwd);
                     }
+                    append_prompt_to_shell();
+                } else if (sh_strcmp(cmd, "time") == 0) {
+                    int h, m, s, dy, mo, yr;
+                    rtc_get_time(&h, &m, &s, &dy, &mo, &yr);
+                    
+                    append_to_shell("\nDate: 20");
+                    char yr_str[8];
+                    uint_to_str(yr, yr_str);
+                    if (yr < 10) append_to_shell("0");
+                    append_to_shell(yr_str);
+                    append_to_shell("-");
+                    
+                    char mo_str[8];
+                    uint_to_str(mo, mo_str);
+                    if (mo < 10) append_to_shell("0");
+                    append_to_shell(mo_str);
+                    append_to_shell("-");
+                    
+                    char dy_str[8];
+                    uint_to_str(dy, dy_str);
+                    if (dy < 10) append_to_shell("0");
+                    append_to_shell(dy_str);
+                    
+                    append_to_shell(" | Time: ");
+                    
+                    char h_str[8];
+                    uint_to_str(h, h_str);
+                    if (h < 10) append_to_shell("0");
+                    append_to_shell(h_str);
+                    append_to_shell(":");
+                    
+                    char m_str[8];
+                    uint_to_str(m, m_str);
+                    if (m < 10) append_to_shell("0");
+                    append_to_shell(m_str);
+                    append_to_shell(":");
+                    
+                    char s_str[8];
+                    uint_to_str(s, s_str);
+                    if (s < 10) append_to_shell("0");
+                    append_to_shell(s_str);
+                    
+                    append_to_shell(" UTC/Local\n");
                     append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "note ", 5) == 0 || sh_strcmp(cmd, "note") == 0) {
                     const char* msg = cmd + 4;
@@ -1048,10 +1113,15 @@ void kernel_main(unsigned int* vesa_framebuffer) {
             draw_rect(0, 560, 800, 40, 22, 18, 25);
             draw_rect(0, 558, 800, 2, 255, 255, 255); // Top glow line
             
-            draw_string("🌅 Sunset OS v0.4", 20, 574, 227, 133, 53);
+            draw_string("🌅 Sunset OS v0.5", 20, 574, 227, 133, 53);
             draw_string("Mode: VESA 800x600x24", 230, 574, 245, 235, 230);
             draw_string("Kernel: Ring 0 Core", 460, 574, 120, 220, 160);
-            draw_string("Active Shell", 680, 574, 255, 255, 255);
+            
+            char clock_buf[32];
+            int h, m, s, dy, mo, yr;
+            rtc_get_time(&h, &m, &s, &dy, &mo, &yr);
+            format_time_string(h, m, s, clock_buf);
+            draw_string(clock_buf, 650, 574, 255, 255, 255);
 
             // 6. Plot mouse pointer overlay on top of everything
             draw_mouse_pointer();

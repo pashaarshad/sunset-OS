@@ -70,10 +70,11 @@ $modules = @{
     'net'       = 'kernel/drivers/net.c'
     'idt'       = 'kernel/scheduler/idt.c'
     'scheduler' = 'kernel/scheduler/scheduler.c'
+    'rtc'       = 'kernel/drivers/rtc.c'
     'kernel'    = 'kernel/core/kernel.c'
 }
 
-$moduleOrder = @('memory', 'graphics', 'font', 'vfs', 'window', 'garden', 'mouse', 'sound', 'net', 'idt', 'scheduler', 'kernel')
+$moduleOrder = @('memory', 'graphics', 'font', 'vfs', 'window', 'garden', 'mouse', 'sound', 'net', 'idt', 'scheduler', 'rtc', 'kernel')
 $objFiles = @()
 
 foreach ($module in $moduleOrder) {
