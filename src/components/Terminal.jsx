@@ -156,9 +156,18 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
               osc.stop(start + duration);
             };
             const now = ctx.currentTime;
-            playToneAt(523, now, 0.15);
-            playToneAt(659, now + 0.15, 0.15);
-            playToneAt(784, now + 0.30, 0.35);
+            // Phrase 1: Nature breeze arpeggio
+            playToneAt(659, now, 0.15);         // E5
+            playToneAt(784, now + 0.15, 0.15);  // G5
+            playToneAt(880, now + 0.30, 0.15);  // A5
+            playToneAt(988, now + 0.45, 0.15);  // B5
+            playToneAt(1175, now + 0.60, 0.30); // D6
+            
+            // Phrase 2: Serene sunset resolution (after 0.1s breath pause)
+            playToneAt(880, now + 1.00, 0.18);  // A5
+            playToneAt(988, now + 1.18, 0.18);  // B5
+            playToneAt(1175, now + 1.36, 0.18); // D6
+            playToneAt(1318, now + 1.54, 0.45); // E6
           }
         }
         newHistory.push({ text: "Replaying serene welcome chime...", type: "success" });

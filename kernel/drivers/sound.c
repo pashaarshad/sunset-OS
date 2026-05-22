@@ -82,20 +82,33 @@ void stop_tone() {
     mutex_unlock(&sound_mutex);
 }
 
-// Ascending Serene 3-Tone Welcome Melody (Major Chord: C5 -> E5 -> G5)
+// Ascending-Descending Serene Pentatonic Chime Melody (E5 -> G5 -> A5 -> B5 -> D6 -> Breath -> A5 -> B5 -> D6 -> E6)
 void play_startup_chime() {
-    // Note 1: C5 (523 Hz) - 150ms
-    play_tone(523);
+    // Phrase 1: Nature breeze arpeggio
+    play_tone(659);  // E5
     sleep_ms(150);
-
-    // Note 2: E5 (659 Hz) - 150ms
-    play_tone(659);
+    play_tone(784);  // G5
     sleep_ms(150);
-
-    // Note 3: G5 (784 Hz) - 250ms
-    play_tone(784);
-    sleep_ms(250);
-
+    play_tone(880);  // A5
+    sleep_ms(150);
+    play_tone(988);  // B5
+    sleep_ms(150);
+    play_tone(1175); // D6
+    sleep_ms(300);
+    
+    stop_tone();
+    sleep_ms(100);   // Calm breath pause
+    
+    // Phrase 2: Serene sunset resolution
+    play_tone(880);  // A5
+    sleep_ms(180);
+    play_tone(988);  // B5
+    sleep_ms(180);
+    play_tone(1175); // D6
+    sleep_ms(180);
+    play_tone(1318); // E6
+    sleep_ms(450);
+    
     // Fade off cleanly
     stop_tone();
 }

@@ -1131,6 +1131,6 @@ void kernel_main(unsigned int* vesa_framebuffer) {
         flush_buffer();
 
         // 8. Regulation delay
-        delay(8000);
+        delay(3000);
     }
 }

@@ -130,10 +130,14 @@ void update_mouse() {
                     dy |= 0xFFFFFF00;
                 }
                 
+                // Responsive 1.8x speed multiplier to remove sluggishness/lag
+                int scaled_dx = (dx * 9) / 5;
+                int scaled_dy = (dy * 9) / 5;
+                
                 // In PS/2 mouse coordinate maps, vertical displacement is upward positive,
                 // while in standard VGA framebuffers, vertical coordinate growth is downward positive.
-                mouse_x += dx;
-                mouse_y -= dy; // Subtract relative Y movement delta!
+                mouse_x += scaled_dx;
+                mouse_y -= scaled_dy; // Subtract relative Y movement delta!
                 
                 // Apply strict coordinate constraints to keep the pointer inside the viewport boundaries
                 if (mouse_x < 0) mouse_x = 0;
@@ -153,23 +157,48 @@ void draw_mouse_pointer() {
     int x = mouse_x;
     int y = mouse_y;
     
-    // Draw a premium glowing white arrow cursor overlay with a thin red/orange shadow
-    for (int i = 0; i < 15; i++) {
-        for (int j = 0; j <= i; j++) {
-            if (j == i || j == 0 || i == 14) {
-                // Outline border: Glowing Sunset Red RGB (227, 32, 62)
-                draw_pixel(x + j, y + i, 227, 32, 62);
-            } else {
-                // Fill interior: Solid Pure White RGB (255, 255, 255)
-                draw_pixel(x + j, y + i, 255, 255, 255);
+    // Premium tilted classic OS arrow cursor (17 rows, 12 cols)
+    static const char* cursor_bitmap[17] = {
+        "X...........",
+        "XX..........",
+        "XoX.........",
+        "XooX........",
+        "XoooX.......",
+        "XooooX......",
+        "XoooooX.....",
+        "XooooooX....",
+        "XoooooooX...",
+        "XooooooooX..",
+        "XoooooXXXXX.",
+        "XooXooX.....",
+        "XoX..XooX...",
+        "XX...XooX...",
+        "......XooX..",
+        "......XooX..",
+        ".......XX..."
+    };
+
+    // 1. Render soft warm glowing sunset shadow (offset +1, +1)
+    for (int row = 0; row < 17; row++) {
+        for (int col = 0; col < 12; col++) {
+            char pixel = cursor_bitmap[row][col];
+            if (pixel != '.') {
+                draw_pixel(x + col + 1, y + row + 1, 80, 30, 15);
             }
         }
     }
-    
-    // Render elegant pointer stem anchors
-    draw_pixel(x + 3, y + 15, 227, 32, 62);
-    draw_pixel(x + 4, y + 16, 227, 32, 62);
-    draw_pixel(x + 3, y + 16, 255, 255, 255);
-    draw_pixel(x + 5, y + 17, 227, 32, 62);
-    draw_pixel(x + 4, y + 17, 255, 255, 255);
+
+    // 2. Render crisp high-contrast cursor on top
+    for (int row = 0; row < 17; row++) {
+        for (int col = 0; col < 12; col++) {
+            char pixel = cursor_bitmap[row][col];
+            if (pixel == 'X') {
+                // Sleek charcoal-black border
+                draw_pixel(x + col, y + row, 20, 20, 20);
+            } else if (pixel == 'o') {
+                // Pure white fill
+                draw_pixel(x + col, y + row, 255, 255, 255);
+            }
+        }
+    }
 }
