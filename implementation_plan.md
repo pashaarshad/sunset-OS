@@ -1,119 +1,169 @@
-# Sunset OS — Implementation Plan
+# Sunset OS — Implementation Plan: Milestone 9 (Emoji Logo & Virtual File System RAM Disk)
 
-We will build the foundation for **Sunset OS** (Ghuroob OS). Because compiling low-level operating system code requires a specialized toolchain (NASM, GCC, QEMU), we will deliver a **dual-track codebase**:
+![Sunset OS Milestone 9 Premium Emoji Logo Preview](C:/Users/Admin/.gemini/antigravity-ide/brain/fe476dfd-10aa-4dc5-b35e-c0816248fd92/sunset_os_m9_preview_1779355815268.png)
 
-1. **The Real Low-Level OS Foundation**: Complete, compile-ready assembly and C source files for the **AP Bootloader** and **LAZ Kernel** structured exactly as outlined in the roadmap, accompanied by an automated environment setup and build suite for Windows.
-2. **The Interactive Web Simulator & OS Dashboard**: A gorgeous, ultra-premium web application styled with vibrant sunset gradients, glassmorphism, and smooth animations that simulates the booted Sunset OS environment directly in the browser. It will feature a fully functional file system, media player, text editor, terminal, and a **Web-Speech AI Voice Assistant** (Ghuroob Voice) that responds to voice commands!
+We will implement **Milestone 9 (High-fidelity Emoji Logo & VFS RAM Disk)** for **Sunset OS (Ghuroob OS)**. This phase focuses on resolving the out-of-bounds glyph rendering bug that draws `????` for the sunset emoji (`🌅`), replacing it with a custom 16x16 pixel-art setting sun logo, and implementing an in-memory Virtual File System (VFS) RAM disk with shell commands and dynamic Calm Notes integration.
 
 ---
 
 ## User Review Required
 
-Please review the proposed architecture and design choices:
+Please review the proposed architectural and low-level designs for Milestone 9:
 > [!IMPORTANT]
-> - **Toolchain Setup**: The real OS code requires NASM and QEMU. We provide an automated PowerShell script `tools/setup_env.ps1` that uses Windows Package Manager (`winget`) to install these dependencies safely.
-> - **Web-Based Simulator**: Since a real custom kernel runs in an emulator without advanced UI/AI capabilities initially, the Web Simulator will serve as the rich, interactive "future vision" showcasing the voice-controlled UI, media suite, and calm, nature-inspired design. We will build this using a high-performance **Vite + React** web app initialized in the workspace root.
+> - **UTF-8 Emoji Interception**: The standard 8x8 font system converts characters outside 32-127 into `?`. We will detect the four-byte UTF-8 sequence for `🌅` (`0xF0 0x9F 0x8C 0x85`) inside `draw_string` and draw a custom, high-fidelity 16x16 pixel-art sunset logo, slightly raised to align with the text baseline.
+> - **In-Memory RAM Disk (VFS)**: We will create a light Virtual File System (VFS) using an active file slot array structure inside high-memory workspace, supporting creating, listing, reading, writing, and deleting files.
+> - **Shell Command Extraction Fix**: The existing terminal extracts commands starting from index 32, which breaks scrollback and multi-command history because the prompt keeps appending. We will fix this by searching backwards to extract the command relative to the *last* active prompt in the buffer.
+> - **Calm Notes & VFS Binding**: Instead of utilizing an isolated global char buffer, the "Calm Notes" window will read directly from a VFS file (`notes.txt`). The shell command `note [msg]` will dynamically append to `notes.txt` in the VFS, automatically updating the GUI window in real time!
 
 ---
 
 ## Proposed Changes
 
-We will construct a complete, professional repository structure.
+We will group our proposed changes by the VFS core and the graphics rasterizer.
 
-### Component 1: Real OS Source Code (`/bootloader`, `/kernel`, `/tools`)
-
-We will create the raw x86 assembly and C kernel source code files.
-
-#### [NEW] [bootloader.asm](file:///d:/sunset-OS/bootloader/bootloader.asm)
-* A 16-bit real mode bootloader using NASM assembly.
-* Initializes the stack, segment registers, and clears the screen.
-* Prints `"AP Bootloader: Loading Sunset OS..."` and a custom welcome ASCII art.
-* Reads the kernel from the second sector of the disk into memory using BIOS interrupts (`int 0x13`).
-* Jumps to the kernel entry point.
-
-#### [NEW] [kernel.c](file:///d:/sunset-OS/kernel/kernel.c)
-* The entry point of the **LAZ Kernel** written in C.
-* Implements a basic VGA screen driver to write characters to memory address `0xB8000` (text mode).
-* Displays a gorgeous, multi-colored startup screen: `"Welcome to Sunset OS (Ghuroob OS) - LAZ Kernel v0.1"`.
-* Implements a simple keyboard listener via I/O ports (`0x60`) and displays keypresses on screen.
-
-#### [NEW] [linker.ld](file:///d:/sunset-OS/kernel/linker.ld)
-* A custom linker script to compile the kernel in flat binary format, positioning the entry point correctly.
-
-#### [NEW] [setup_env.ps1](file:///d:/sunset-OS/tools/setup_env.ps1)
-* A PowerShell script that automates the installation of **NASM**, **GCC (MinGW)**, and **QEMU** via `winget` and adds them to the environment path.
-
-#### [NEW] [build.ps1](file:///d:/sunset-OS/tools/build.ps1)
-* A PowerShell script that compiles `bootloader.asm` to a flat binary, compiles `kernel.c` using GCC, links them together into a bootable `sunset_os.img` floppy/disk image, and launches it in **QEMU**.
+```mermaid
+graph TD
+    subgraph UI Rasterizer
+        A[draw_string] -->|Scan bytes| B{Is UTF-8 0xF0 9F 8C 85 ?}
+        B -->|Yes| C[draw_sunset_logo 16x16]
+        B -->|No| D[draw_char 8x8]
+    end
+    subgraph Virtual File System RAM Disk
+        E[ls command] -->|vfs_list| F[ramdisk Array]
+        G[cat command] -->|vfs_read| F
+        H[write command] -->|vfs_write| F
+        I[rm command] -->|vfs_delete| F
+    end
+    subgraph Calm Notes Integration
+        J[note msg] -->|Append| K[notes.txt in VFS]
+        K -->|Reads from| L[Calm Notes GUI Window]
+    end
+```
 
 ---
 
-### Component 2: Interactive Sunset OS Simulator (Web App)
+### Component 1: Custom Pixel-Art Sunset Emoji Rendering
 
-We will bootstrap a Vite + React web application in the root directory to deliver a visually stunning, calm, and fully interactive interface.
+We will implement the pixel-art logo rendering and string matching inside the graphics module.
 
-#### [NEW] [package.json](file:///d:/sunset-OS/package.json), [vite.config.js](file:///d:/sunset-OS/vite.config.js)
-* Sets up a modern web app environment using Vite, React, and Lucide icons.
+#### [MODIFY] [font.c](file:///d:/sunset-OS/kernel/graphics/font.c)
+* Implement `draw_sunset_logo(int x, int y)`:
+  - Draws a gorgeous 16x16 custom pixel-art sunset card.
+  - The sky background remains transparent to blend perfectly with title bars and gradient backdrops.
+  - The setting sun is a half-circle dome colored with a brilliant light-yellow core (`255, 240, 150`) and golden-orange mantle (`253, 150, 30`).
+  - The sea body below has light gold/orange wave reflections in the center and deep purple-blue wave highlights.
+* Update `draw_string` to intercept UTF-8 bytes:
+  - Cast `str[i]` to `unsigned char` to prevent signed comparison conflicts.
+  - Check if `c == 0xF0 && (unsigned char)str[i+1] == 0x9F && (unsigned char)str[i+2] == 0x8C && (unsigned char)str[i+3] == 0x85`.
+  - If matched, invoke `draw_sunset_logo(curr_x, curr_y - 4)` (raised 4px to align vertically with the 8x8 font), advance `curr_x += 16` (logo width), and skip the remainder of the UTF-8 sequence using `i += 3`.
 
-#### [NEW] [index.html](file:///d:/sunset-OS/index.html), [src/index.css](file:///d:/sunset-OS/src/index.css)
-* Implements the **Sunset UI Design System**:
-  - Warm, vibrant gradient backgrounds (deep oranges, soft purples, radiant pinks, nature greens).
-  - Premium glassmorphism (frosted-glass panels, backdrop filters, soft drop shadows).
-  - Modern typography using the **Outfit** Google Font.
-  - Fluid micro-animations for app openings, window dragging, and button hovers.
+---
 
-#### [NEW] [src/App.jsx](file:///d:/sunset-OS/src/App.jsx)
-* The main desktop layout, taskbar, boot sequence simulator, and application manager.
-* **Boot Sequence**: Simulates the AP Bootloader loading the LAZ Kernel with realistic boot messages before fading into the gorgeous desktop.
-* **Ambient Soundscape**: An automatic background music loop playing calming nature/sunset lofi tracks.
+### Component 2: Virtual File System (VFS) and RAM Disk
 
-#### [NEW] [src/components/FileManager.jsx](file:///d:/sunset-OS/src/components/FileManager.jsx)
-* An interactive File Explorer with a virtual file system (stored in `localStorage` for persistence):
-  - Folders: `Documents`, `Music`, `Videos`, `Pictures`, `Downloads`.
-  - Operations: Create file/folder, Delete, Rename, Drag & Drop files between folders.
-  - Responsive file icons based on extensions (`.txt`, `.mp3`, `.mp4`, `.jpg`).
+We will implement a lightweight, static RAM disk under the core kernel workspace.
 
-#### [NEW] [src/components/TextEditor.jsx](file:///d:/sunset-OS/src/components/TextEditor.jsx)
-* A beautiful, distraction-free markdown text editor that allows creating, editing, and saving text files directly into the virtual file system.
+#### [NEW] [vfs.h](file:///d:/sunset-OS/kernel/core/vfs.h)
+* Define file structure and API function signatures:
+```c
+#ifndef VFS_H
+#define VFS_H
 
-#### [NEW] [src/components/MediaSuite.jsx](file:///d:/sunset-OS/src/components/MediaSuite.jsx)
-* Three mini-apps in a unified media bundle:
-  - **Image Viewer**: Displays beautiful high-definition sunset wallpapers (generated by AI).
-  - **Music Player**: A fully functional audio player playing calming ambient lo-fi tracks, featuring a play/pause toggle, track progress bar, track list, and an interactive audio frequency visualizer (equalizer animation).
-  - **Video Player**: Play virtual relaxing cinematic clips of sunsets and nature, with seek and volume controls.
+#define MAX_VFS_FILES 8
+#define MAX_FILE_NAME 32
+#define MAX_FILE_SIZE 512
 
-#### [NEW] [src/components/Terminal.jsx](file:///d:/sunset-OS/src/components/Terminal.jsx)
-* A terminal shell simulating `SunsetSH` with support for actual interactive commands:
-  - `help` - List available commands.
-  - `ls`, `cat [file]`, `rm [file]`, `create [file] [content]`, `mkdir [dir]` - Work with the virtual file system!
-  - `neofetch` - Display a gorgeous ASCII logo of Sunset OS and system specifications.
-  - `theme [sunset|greenery|dusk]` - Dynamically switch the desktop color theme.
-  - `voice` - Open the AI Voice Assistant window.
+typedef struct {
+    char name[MAX_FILE_NAME];
+    char content[MAX_FILE_SIZE];
+    int size;
+    char active;
+} vfs_file_t;
 
-#### [NEW] [src/components/VoiceAssistant.jsx](file:///d:/sunset-OS/src/components/VoiceAssistant.jsx)
-* **Ghuroob Voice AI Assistant**:
-  - Implements the Web Speech API (`SpeechRecognition` and `SpeechSynthesis`) so the user can speak directly to the assistant.
-  - Text-to-Speech support so the assistant answers back in a warm, calming voice.
-  - Deep system integrations. Speech commands will trigger actual UI actions:
-    - *"Open file manager"* / *"Open files"* -> Launches File Manager.
-    - *"Play music"* / *"Stop music"* -> Plays/pauses the ambient audio player.
-    - *"Create file named [name]"* -> Creates a file in the virtual filesystem.
-    - *"Open editor"* / *"Open terminal"* -> Launches respective apps.
-    - *"Tell me a sunset quote"* / *"Motivate me"* -> Speaks and displays a beautiful motivational sunset/nature quote.
+extern vfs_file_t ramdisk[MAX_VFS_FILES];
 
-#### [NEW] [src/assets/bg.jpg](file:///d:/sunset-OS/src/assets/bg.jpg)
-* A beautiful, premium, nature-and-sunset-inspired background wallpaper that we will generate using the `generate_image` tool!
+void vfs_init();
+int vfs_list(char* out, int max_len);
+int vfs_read(const char* name, char* out, int max_len);
+int vfs_write(const char* name, const char* content);
+int vfs_delete(const char* name);
+
+#endif
+```
+
+#### [NEW] [vfs.c](file:///d:/sunset-OS/kernel/core/vfs.c)
+* Implement RAM disk memory allocation:
+  - Create the `ramdisk` global array.
+  - Implement static helper string handlers (`strcmp`, `strcpy`, `strlen`) to maintain freestanding safety.
+  - Implement `vfs_init()` which pre-allocates default files:
+    - `welcome.txt` (Tranquil welcome banner text).
+    - `philosophy.txt` (Sunset OS naming philosophy text).
+    - `todo.txt` (Calming mindfulness checklist).
+  - Implement `vfs_list()`, formatting files as a readable list (e.g. `- welcome.txt (112 bytes)\n`).
+  - Implement `vfs_read()`, `vfs_write()`, and `vfs_delete()`.
+
+---
+
+### Component 3: Shell and GUI Window Integrations
+
+We will update the shell parser and GUI variables inside the main coordinator.
+
+#### [MODIFY] [kernel.c](file:///d:/sunset-OS/kernel/core/kernel.c)
+* Include `#include "vfs.h"` at the top of the file.
+* Initialize the VFS by calling `vfs_init();` immediately after graphics drivers inside `kernel_main`.
+* Bind the "Calm Notes" window to `notes.txt` in the VFS:
+  - In `kernel_main`, create and write initial calming content to `notes.txt` in VFS.
+  - Initialize the window with content pointed directly to the VFS content buffer: `init_window(&win_notes, 440, 70, 320, 210, "Calm Notes", ramdisk[notes_slot].content)`.
+* Fix command extraction from `shell_buffer`:
+  - Replace index-32 hardcoded extraction.
+  - Scan backwards to find the last occurrence of `"sunset-OS:~$ "` in `shell_buffer`.
+  - Extract the command starting immediately after that prompt index, cleanly supporting multi-command shell execution without conflict or `clear` dependency.
+* Add shell commands:
+  - `ls`: List files in the RAM disk.
+  - `cat [filename]`: Print file content.
+  - `touch [filename]`: Create an empty file.
+  - `write [filename] [content]`: Overwrite/create a file with the written string.
+  - `rm [filename]`: Delete a file.
+* Update `note [msg]` command:
+  - Read existing contents of `notes.txt` from the VFS.
+  - Append the new note drift string.
+  - Write it back using `vfs_write("notes.txt", ...)`, which automatically triggers in-memory buffer sync and GUI redraws instantly!
+
+---
+
+### Component 4: Build System Toolchain Integration
+
+We will register the new C module inside the PowerShell automation script.
+
+#### [MODIFY] [build.ps1](file:///d:/sunset-OS/tools/build.ps1)
+* Add `vfs` into the modules mapping:
+```powershell
+    'vfs'       = 'kernel/core/vfs.c'
+```
+* Append `vfs` inside the compilation and link sequencing array:
+```powershell
+$moduleOrder = @('memory', 'graphics', 'font', 'vfs', 'window', 'garden', 'mouse', 'sound', 'net', 'idt', 'scheduler', 'kernel')
+```
 
 ---
 
 ## Verification Plan
 
-### Automated / Local Tests
-1. **Compilation Check**: Run the PowerShell script to verify GCC and NASM compile the raw assembly and C files without errors.
-2. **QEMU Emulation**: Boot the compiled `sunset_os.img` in QEMU to see the real AP Bootloader and custom kernel loading text.
-3. **Web Dev Validation**: Start the Vite dev server (`npm run dev`) and run automated code linting/loading tests.
+### Automated / Compiler Tests
+1. **Compilation Check**: Run `powershell.exe -ExecutionPolicy Bypass -File tools/build.ps1` to ensure NASM, GCC, and LD link `vfs.o` and compile successfully.
 
-### Manual Verification
-1. **Desktop UI Flow**: Boot the web simulator, verify the glassmorphism layout, drag/drop files, open/close multiple overlapping windows.
-2. **Persistent Storage**: Create a text file, edit it in the Text Editor, close the app, open it again, and verify the edits persist via `localStorage`.
-3. **Voice Interaction**: Click the microphone icon, say *"Play music"* or *"Open terminal"*, and verify the browser accurately recognizes the voice and triggers the action, speaking back the confirmation.
+### Manual / Visual Verification inside QEMU
+1. **Sunset Logo Verification**:
+   - Verify the boot card loads the gorgeous pixel-art Sun and ocean reflections without any question marks.
+   - Verify the taskbar at the bottom left renders `🌅 Sunset OS v0.4` correctly and cleanly aligned.
+2. **Multi-Command Execution Validation**:
+   - Type multiple sequential commands: `help`, `chime`, `lofi 1` without typing `clear` and verify they all execute properly (proving prompt extraction fix works).
+3. **VFS File Shell Command Validation**:
+   - Type `ls` to verify the pre-allocated files list shows up.
+   - Type `cat welcome.txt` to print the greeting message.
+   - Type `touch deep.txt` and verify `ls` lists `deep.txt (0 bytes)`.
+   - Type `write deep.txt Take a deep breath.` and verify `cat deep.txt` shows the text.
+   - Type `rm deep.txt` and verify it is removed from `ls`.
+4. **Calm Notes Live Sync**:
+   - Type `note Relax your shoulders.` in the terminal.
+   - Verify that the Calm Notes GUI window instantly displays the appended note!

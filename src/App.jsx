@@ -17,6 +17,7 @@ export default function App() {
   // 1. OS Boot & Theme State
   const [isBooted, setIsBooted] = useState(false);
   const [bootLogs, setBootLogs] = useState([]);
+  const [bootProgress, setBootProgress] = useState(0);
   const [theme, setTheme] = useState('sunset'); // 'sunset' | 'greenery' | 'dusk'
   const [time, setTime] = useState(new Date());
 
@@ -52,14 +53,45 @@ export default function App() {
   const [activeDragApp, setActiveDragApp] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
+  // Helper to synthesize startup welcome chime arpeggio
+  const playStartupWebChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      
+      const playToneAt = (freq, start, duration) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'triangle';
+        gain.gain.setValueAtTime(0.001, start);
+        gain.gain.linearRampToValueAtTime(0.15, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+      
+      const now = ctx.currentTime;
+      // Ascending Serene 3-Tone Welcome Melody (Major Chord: C5 -> E5 -> G5)
+      playToneAt(523, now, 0.15);       // C5 - 150ms
+      playToneAt(659, now + 0.15, 0.15); // E5 - 150ms
+      playToneAt(784, now + 0.30, 0.35); // G5 - 350ms
+    } catch (e) {
+      console.log("Welcome chime blocked by browser autoplay policy until user interacts.");
+    }
+  };
+
   // 4. Simulated Boot Sector Logs
   useEffect(() => {
     const logs = [
       "AP Bootloader v0.1: Initializing systems...",
       "BIOS check physical sector... OK (0x7C00)",
       "Standard registers AX/BX/CX/DX loaded... OK",
-      "Switching CPU mode to Real Mode... Done",
-      "Bootloader: Reading sector 2 for LAZ Kernel...",
+      "Switching CPU mode to Protected Mode... Done",
+      "AP Bootloader: Reading sector 2 for LAZ Kernel...",
       "AP Bootloader: Transferring control to LAZ Kernel...",
       "LAZ Kernel v0.1: Booting successfully in Ring 0...",
       "GDT loaded at address 0x000100... OK",
@@ -71,9 +103,14 @@ export default function App() {
     ];
 
     let currentLogIndex = 0;
+    // Play startup chime right at start
+    playStartupWebChime();
+
     const interval = setInterval(() => {
       if (currentLogIndex < logs.length) {
         setBootLogs(prev => [...prev, logs[currentLogIndex]]);
+        const nextProgress = Math.min(100, Math.floor(((currentLogIndex + 1) / logs.length) * 100));
+        setBootProgress(nextProgress);
         currentLogIndex++;
       } else {
         clearInterval(interval);
@@ -223,32 +260,57 @@ export default function App() {
   if (!isBooted) {
     // RENDER SIMULATED BIOS BOOTLOADER PAGE
     return (
-      <div className="w-full h-full bg-[#07050a] flex items-center justify-center p-6 text-[#00ff66] font-mono select-none">
-        <div className="w-full max-w-2xl bg-black/60 border border-[#00ff66]/10 p-8 rounded-xl shadow-2xl">
-          <div className="flex justify-between items-center border-b border-[#00ff66]/20 pb-4 mb-6">
-            <h2 className="text-sm font-bold tracking-widest flex items-center gap-2">
-              <Cpu className="w-4 h-4 animate-pulse" /> AP-BIOS ROM v1.0.86
-            </h2>
-            <span className="text-xs opacity-60">Ready to Boot</span>
+      <div 
+        onClick={playStartupWebChime}
+        className="w-full h-full bg-gradient-to-br from-orange-950 via-rose-950 to-indigo-950 flex items-center justify-center p-6 select-none relative overflow-hidden cursor-pointer"
+      >
+        {/* Decorative backdrop elements */}
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+        
+        {/* Glow layer */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[100px] pointer-events-none" />
+
+        <div className="w-full max-w-md bg-[#140b25]/85 border border-[#e38535]/30 p-8 rounded-2xl shadow-2xl relative z-10 backdrop-blur-xl flex flex-col items-center">
+          
+          {/* Logo & Slogan */}
+          <div className="flex flex-col items-center mb-6">
+            <span className="text-5xl mb-2 filter drop-shadow-[0_0_15px_rgba(227,133,53,0.5)]">🌅</span>
+            <h1 className="text-2xl font-bold tracking-wider text-[#e38535] drop-shadow-[0_0_8px_rgba(227,133,53,0.3)]">SUNSET OS</h1>
+            <p className="text-[11px] text-white/50 tracking-widest uppercase mt-1">Ghuroob Operating System</p>
+            <p className="text-xs text-white/70 italic mt-3">"Breathe in. Rest. Reflect."</p>
           </div>
           
-          <div className="space-y-2 text-xs leading-relaxed max-h-80 overflow-y-auto pr-1">
-            {bootLogs.map((log, i) => (
-              <p key={i} className="boot-loader-text">
-                {log.startsWith("AP Bootloader") || log.startsWith("Laz Kernel") ? (
-                  <span className="text-yellow-400 font-bold">{log}</span>
-                ) : log.includes("successfully") || log.includes("OK") ? (
-                  <span className="text-emerald-400">{log}</span>
-                ) : (
-                  log
-                )}
-              </p>
-            ))}
+          {/* Progress Bar Container */}
+          <div className="w-full bg-black/40 border border-white/5 h-4 rounded-full overflow-hidden mb-6 relative">
+            <div 
+              className="bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 h-full rounded-full transition-all duration-300 ease-out shadow-[0_0_12px_#e38535]"
+              style={{ width: `${bootProgress}%` }}
+            />
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+              {bootProgress}%
+            </span>
           </div>
 
-          <div className="mt-8 flex justify-between items-center text-[10px] opacity-45 border-t border-[#00ff66]/10 pt-4">
-            <span>Power input: Normal</span>
-            <span>Target offset: 0x7C00</span>
+          {/* Logs Terminal Area */}
+          <div className="w-full h-32 bg-black/60 border border-white/5 rounded-xl p-4 font-mono text-[10px] leading-relaxed overflow-y-auto text-amber-300/80 flex flex-col-reverse justify-start">
+            <div className="space-y-1 flex flex-col">
+              {bootLogs.slice().reverse().map((log, i) => (
+                <p key={i} className="boot-loader-text truncate">
+                  {log.startsWith("AP Bootloader") || log.startsWith("LAZ Kernel") || log.startsWith("Sunset OS") ? (
+                    <span className="text-[#e38535] font-semibold">{log}</span>
+                  ) : log.includes("successfully") || log.includes("OK") || log.includes("Done") ? (
+                    <span className="text-emerald-400">{log}</span>
+                  ) : (
+                    log
+                  )}
+                </p>
+              ))}
+            </div>
+          </div>
+
+          <div className="w-full mt-6 flex justify-between items-center text-[9px] text-white/30 border-t border-white/5 pt-4">
+            <span>Power Mode: Serene</span>
+            <span>Boot Offset: 0x10000</span>
           </div>
         </div>
       </div>

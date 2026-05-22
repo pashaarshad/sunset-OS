@@ -100,6 +100,9 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           { text: "  theme [name]- Change color theme (sunset, greenery, dusk).", type: "text" },
           { text: "  voice       - Trigger the AI Voice Assistant window.", type: "text" },
           { text: "  matrix      - Activate green-rain console diagnostic overlay.", type: "text" },
+          { text: "  garden      - Spawn Zen Garden sandbox view.", type: "text" },
+          { text: "  note [msg]  - Append a formatted note into Calm Notes.", type: "text" },
+          { text: "  lofi [1-3]  - Play distinct relaxing multi-note arpeggios.", type: "text" },
           { text: "  clear       - Clear screen logs.", type: "text" }
         );
         playCmdChime(true);
@@ -377,15 +380,19 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
             newHistory.push(
               { text: "   * * *   🌸 SUNSET ZEN GARDENS 🌸   * * *", type: "logo" },
               { text: "         A grid of calm, beauty, and peace.", type: "text" },
-              { text: "        +-----+-----+-----+-----+-----+", type: "text" },
-              { text: "        | .   | Sakura | .   |  .  | Lavender |", type: "text" },
-              { text: "        +-----+-----+-----+-----+-----+", type: "text" },
-              { text: "        | .   |  .  | Lily| .   |  .  |", type: "text" },
-              { text: "        +-----+-----+-----+-----+-----+", type: "text" },
-              { text: "        | Sakura | .  |  .  |  .  | Lily|", type: "text" },
-              { text: "        +-----+-----+-----+-----+-----+", type: "text" },
-              { text: "        | .   | Lavender | . | Sakura | . |", type: "text" },
-              { text: "        +-----+-----+-----+-----+-----+", type: "text" }
+              { text: "  +---------------------------------+", type: "text" },
+              { text: "  | . . . . O . . . . . . . . . . . |", type: "text" },
+              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+              { text: "  | . . . . @ . . . . . . . . . . . |", type: "text" },
+              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+              { text: "  | . . . . . . . . . . . . * . . . |", type: "text" },
+              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+              { text: "  | . . . . . . . . . . . O . . . . |", type: "text" },
+              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+              { text: "  +---------------------------------+", type: "text" },
+              { text: "  Status: A quiet mind rakes the sand.", type: "success" }
             );
           } else if (urlStr === 'sunset://clouds') {
             newHistory.push(
@@ -415,6 +422,149 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
             triggerSystemAction('open_browser', urlStr);
           }
           playCmdChime(true);
+        }
+        break;
+
+      case 'garden':
+        newHistory.push(
+          { text: "Spawning Zen Garden sandbox layout...", type: "success" },
+          { text: "     🌅 SUNSET ZEN GARDEN 🌅", type: "logo" },
+          { text: "  [WASD] Move   [R] Rake   [O] Stone", type: "info" },
+          { text: "  [S] Sakura    [C] Clear  [X] Status", type: "info" },
+          { text: "  +---------------------------------+", type: "text" },
+          { text: "  | . . . . O . . . . . . . . . . . |", type: "text" },
+          { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+          { text: "  | . . . . @ . . . . . . . . . . . |", type: "text" },
+          { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+          { text: "  | . . . . . . . . . . . . * . . . |", type: "text" },
+          { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+          { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+          { text: "  | . . . . . . . . . . . O . . . . |", type: "text" },
+          { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+          { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+          { text: "  +---------------------------------+", type: "text" },
+          { text: "  Status: A quiet mind rakes the sand.", type: "success" }
+        );
+        playCmdChime(true);
+        break;
+
+      case 'note':
+        if (args.length === 0) {
+          newHistory.push({ text: "Usage: note [message]\nExample: note take a deep breath", type: "error" });
+          playCmdChime(false);
+        } else {
+          const msg = args.join(' ');
+          const vfs = getFilesList();
+          let notesFile = vfs.find(item => item.name.toLowerCase() === 'calm_notes.txt');
+          if (notesFile) {
+            notesFile.content += `\n- ${msg}`;
+            const updated = vfs.map(item => item.id === notesFile.id ? notesFile : item);
+            localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
+          } else {
+            const newFile = {
+              id: Date.now().toString(),
+              name: 'calm_notes.txt',
+              type: 'file',
+              parent: '1',
+              content: `WELCOME TO CALM NOTES\n- ${msg}`
+            };
+            const updated = [...vfs, newFile];
+            localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
+          }
+          window.dispatchEvent(new Event('sunset_vfs_changed'));
+          newHistory.push({ text: "Note appended to Calm Notes.", type: "success" });
+          playCmdChime(true);
+        }
+        break;
+
+      case 'lofi':
+        if (args.length === 0) {
+          newHistory.push({ text: "Usage: lofi [1-3]\nPresets:\n  1 - Tranquility Arpeggio\n  2 - Serenity Breeze\n  3 - Golden Sunset Chord", type: "info" });
+          playCmdChime(false);
+        } else {
+          const preset = parseInt(args[0]);
+          if (preset === 1) {
+            newHistory.push({ text: "Playing tranquility arpeggio...", type: "success" });
+            if (typeof window !== 'undefined') {
+              const AudioCtx = window.AudioContext || window.webkitAudioContext;
+              if (AudioCtx) {
+                const ctx = new AudioCtx();
+                const playToneAt = (freq, start, duration) => {
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  osc.frequency.value = freq;
+                  osc.type = 'triangle';
+                  gain.gain.setValueAtTime(0.001, start);
+                  gain.gain.linearRampToValueAtTime(0.08, start + 0.02);
+                  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+                  osc.start(start);
+                  osc.stop(start + duration);
+                };
+                const now = ctx.currentTime;
+                playToneAt(440, now, 0.15);
+                playToneAt(554, now + 0.15, 0.15);
+                playToneAt(659, now + 0.30, 0.15);
+                playToneAt(880, now + 0.45, 0.25);
+              }
+            }
+          } else if (preset === 2) {
+            newHistory.push({ text: "Playing serenity breeze...", type: "success" });
+            if (typeof window !== 'undefined') {
+              const AudioCtx = window.AudioContext || window.webkitAudioContext;
+              if (AudioCtx) {
+                const ctx = new AudioCtx();
+                const playToneAt = (freq, start, duration) => {
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  osc.frequency.value = freq;
+                  osc.type = 'triangle';
+                  gain.gain.setValueAtTime(0.001, start);
+                  gain.gain.linearRampToValueAtTime(0.08, start + 0.02);
+                  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+                  osc.start(start);
+                  osc.stop(start + duration);
+                };
+                const now = ctx.currentTime;
+                playToneAt(523, now, 0.15);
+                playToneAt(659, now + 0.15, 0.15);
+                playToneAt(784, now + 0.30, 0.15);
+                playToneAt(1046, now + 0.45, 0.25);
+              }
+            }
+          } else if (preset === 3) {
+            newHistory.push({ text: "Playing golden sunset chord...", type: "success" });
+            if (typeof window !== 'undefined') {
+              const AudioCtx = window.AudioContext || window.webkitAudioContext;
+              if (AudioCtx) {
+                const ctx = new AudioCtx();
+                const playToneAt = (freq, start, duration) => {
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  osc.frequency.value = freq;
+                  osc.type = 'triangle';
+                  gain.gain.setValueAtTime(0.001, start);
+                  gain.gain.linearRampToValueAtTime(0.08, start + 0.02);
+                  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+                  osc.start(start);
+                  osc.stop(start + duration);
+                };
+                const now = ctx.currentTime;
+                playToneAt(349, now, 0.15);
+                playToneAt(440, now + 0.15, 0.15);
+                playToneAt(523, now + 0.30, 0.15);
+                playToneAt(698, now + 0.45, 0.25);
+              }
+            }
+          } else {
+            newHistory.push({ text: "Error: Preset must be 1, 2, or 3.", type: "error" });
+            playCmdChime(false);
+          }
         }
         break;
 
