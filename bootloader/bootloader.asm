@@ -2,6 +2,8 @@
 ; 🌅 Sunset OS (Ghuroob OS) — AP Bootloader (Milestone 3)
 ; File: bootloader.asm
 ; Author: Arshad Pasha
+; Copyright (c) 2026 Arshad Pasha. All Rights Reserved.
+; License: Private. Authorized use only under the Sunset OS License Agreement.
 ; Description: Custom 16-bit to 32-bit bootloader sector.
 ;              Initializes CPU, loads C kernel, queries and sets VESA
 ;              graphics mode, enters Protected Mode, and jumps to C entry.
@@ -43,6 +45,7 @@ start:
     int 0x10
 
     mov si, msg_loading
+    mov bl, 0x0C      ; Rose Red
     call print_string
 
     ; 3. Load Kernel from disk
@@ -50,6 +53,7 @@ start:
 
     ; 4. Query and Set VESA Graphics Mode (800x600x24)
     mov si, msg_vesa_init
+    mov bl, 0x0B      ; Turquoise Cyan
     call print_string
 
     ; Get VBE mode info for 0x115
@@ -89,7 +93,6 @@ print_string:
     push bx
     mov ah, 0x0E
     mov bh, 0
-    mov bl, 0x0E
 .loop:
     lodsb
     cmp al, 0
@@ -103,6 +106,7 @@ print_string:
 
 load_kernel:
     mov si, msg_disk
+    mov bl, 0x0E      ; Golden Amber
     call print_string
 
     ; 1. Query drive parameters to support both Floppy (QEMU -fda) and Hard Disk (QEMU -drive)
@@ -137,8 +141,8 @@ load_kernel:
     mov es, ax
     xor bx, bx
 
-    ; We want to read 280 sectors starting from LBA = 1 (Sector 2)
-    mov bp, 280                    ; BP will be our sector loop counter (read 280 sectors = 140KB headroom)
+    ; We want to read 320 sectors starting from LBA = 1 (Sector 2)
+    mov bp, 320                    ; BP will be our sector loop counter (read 320 sectors = 160KB headroom)
     mov word [CURRENT_LBA], 1     ; Start reading from LBA = 1 (Sector 2)
 
 .read_sector_loop:
@@ -167,6 +171,7 @@ load_kernel:
     mov es, ax
 
     mov si, msg_disk_ok
+    mov bl, 0x0A      ; Emerald Green
     call print_string
     ret
 
@@ -220,11 +225,13 @@ lba_to_chs:
 
 disk_error:
     mov si, msg_disk_fail
+    mov bl, 0x0C      ; Red alert
     call print_string
     jmp $                         ; Hang on failure
 
 vesa_error:
     mov si, msg_vesa_fail
+    mov bl, 0x0C      ; Red alert
     call print_string
     jmp $                         ; Hang on failure
 
@@ -298,10 +305,10 @@ SECTORS_PER_TRACK db 18         ; Dynamic or fallback Sectors Per Track
 HEADS             db 2          ; Dynamic or fallback Heads
 CURRENT_LBA      dw 0           ; Store current sector offset during load
 VESA_LFB_ADDRESS dd 0           ; Store 32-bit physical address of Linear Frame Buffer
-msg_loading      db 'Sunset OS...', 13, 10, 0
+msg_loading      db 'Ghuroob OS...', 13, 10, 0
 msg_disk         db 'Booting...', 13, 10, 0
 msg_disk_ok      db 'OK.', 13, 10, 0
-msg_vesa_init    db 'VESA...', 13, 10, 0
+msg_vesa_init    db 'VESA Graphics...', 13, 10, 0
 msg_disk_fail    db 'Disk Err!', 13, 10, 0
 msg_vesa_fail    db 'VESA Err!', 13, 10, 0
 

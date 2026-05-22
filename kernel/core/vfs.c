@@ -1,247 +1,281 @@
 /* =====================================================================
  * 🌅 Sunset OS — LAZ Virtual File System & RAM Disk
  * File: vfs.c
- * Description: RAM disk memory allocation, file operations, and helpers.
+ * Author: Arshad Pasha
+ * Copyright (c) 2026 Arshad Pasha. All Rights Reserved.
+ * License: Private. Authorized use only under the Sunset OS License Agreement.
+ * Description: RAM disk memory allocation with full directory support.
+ *              mkdir, cd, ls, cat, touch, write, rm — all freestanding.
  * ===================================================================== */
 
 #include "vfs.h"
 
 vfs_file_t ramdisk[MAX_VFS_FILES];
 
-// Standard static string copy helper for freestanding environment
-static void helper_strcpy(char* dest, const char* src) {
+/* ── Private helpers ── */
+
+static void s_cpy(char* dst, const char* src) {
     int i = 0;
-    while (src[i] != '\0') {
-        dest[i] = src[i];
+    while (src[i]) { dst[i] = src[i]; i++; }
+    dst[i] = '\0';
+}
+
+static int s_cmp(const char* a, const char* b) {
+    int i = 0;
+    while (a[i] && b[i]) {
+        if (a[i] != b[i]) return a[i] - b[i];
         i++;
     }
-    dest[i] = '\0';
+    return a[i] - b[i];
 }
 
-// Standard static string comparison helper for freestanding environment
-static int helper_strcmp(const char* s1, const char* s2) {
-    int i = 0;
-    while (s1[i] != '\0' && s2[i] != '\0') {
-        if (s1[i] != s2[i]) {
-            return s1[i] - s2[i];
-        }
-        i++;
+static int s_len(const char* s) {
+    int n = 0; while (s[n]) n++; return n;
+}
+
+/* Append string into buf[pos..max_len-1], return new pos */
+static int s_app(char* buf, int pos, int max, const char* src) {
+    for (int i = 0; src[i] && pos < max - 1; i++)
+        buf[pos++] = src[i];
+    buf[pos] = '\0';
+    return pos;
+}
+
+/* Append integer as decimal string */
+static int s_app_int(char* buf, int pos, int max, int val) {
+    char tmp[12]; int i = 0;
+    if (val == 0) { tmp[i++] = '0'; }
+    else {
+        char rev[12]; int r = 0;
+        while (val > 0) { rev[r++] = '0' + val % 10; val /= 10; }
+        for (int j = r - 1; j >= 0; j--) tmp[i++] = rev[j];
     }
-    return s1[i] - s2[i];
+    tmp[i] = '\0';
+    return s_app(buf, pos, max, tmp);
 }
 
-// Standard static string length helper for freestanding environment
-static int helper_strlen(const char* s) {
-    int len = 0;
-    while (s[len] != '\0') {
-        len++;
-    }
-    return len;
-}
+/* ── Public API ── */
 
-// Initialize RAM disk partition block and set default calming system files
-void vfs_init() {
+void vfs_init(void) {
     for (int i = 0; i < MAX_VFS_FILES; i++) {
-        ramdisk[i].active = 0;
-        ramdisk[i].name[0] = '\0';
+        ramdisk[i].active  = 0;
+        ramdisk[i].is_dir  = 0;
+        ramdisk[i].size    = 0;
+        ramdisk[i].name[0]    = '\0';
+        ramdisk[i].parent[0]  = '\0';
         ramdisk[i].content[0] = '\0';
-        ramdisk[i].size = 0;
     }
 
-    // Pre-populate default files
-    vfs_write("welcome.txt", "Welcome to Sunset OS! A digital sanctuary designed for serene, focused computing. Breathe in. Rest. Reflect.");
-    vfs_write("philosophy.txt", "Sunset OS represents the calm, restorative interval between Asr and Maghrib daily. It is built to minimize distractions and inspire natural productivity.");
-    vfs_write("todo.txt", "- Take a deep breath.\n- Stretch for 2 minutes.\n- Rest your eyes from the screen.\n- Hydrate.");
+    /* ── Default directory tree ── */
+    vfs_mkdir("Documents", "");
+    vfs_mkdir("Music",     "");
+    vfs_mkdir("Downloads", "");
+    vfs_mkdir("Projects",  "");
+
+    /* ── Root-level files ── */
+    vfs_write("welcome.txt", "",
+        "Welcome to Sunset OS!\n"
+        "A digital sanctuary for serene, focused computing.\n"
+        "Breathe in. Rest. Reflect.");
+
+    vfs_write("notes.txt", "",
+        "WELCOME TO SUNSET OS\n"
+        "Calm. Intelligent. Yours.\n\n"
+        "Use: note [msg] to append here.\n"
+        "Breathe in. Rest. Reflect.");
+
+    /* ── Documents/ ── */
+    vfs_write("philosophy.txt", "Documents",
+        "Sunset OS represents the calm interval\n"
+        "between Asr and Maghrib — a restorative\n"
+        "time that refreshes, motivates, inspires.\n"
+        "Designed to minimize distractions.");
+
+    vfs_write("todo.txt", "Documents",
+        "[ ] Take a deep breath.\n"
+        "[ ] Stretch for 2 minutes.\n"
+        "[ ] Rest your eyes from the screen.\n"
+        "[ ] Hydrate. Drink water.");
+
+    vfs_write("readme.txt", "Documents",
+        "Sunset OS File System\n"
+        "=====================\n"
+        "Commands:\n"
+        "  ls          - list current directory\n"
+        "  cd <dir>    - enter directory\n"
+        "  cd ..       - go up to parent\n"
+        "  pwd         - show current path\n"
+        "  mkdir <dir> - create new directory\n"
+        "  cat <file>  - read file\n"
+        "  touch <f>   - create empty file\n"
+        "  write <f>   - write content to file\n"
+        "  rm <file>   - delete file");
 }
 
-// Write the dynamic active file listing into formatting buffer
-int vfs_list(char* out, int max_len) {
+/* List directory contents */
+int vfs_list(const char* dir, char* out, int max_len) {
     int pos = 0;
     out[0] = '\0';
-    
-    const char* header = "\nFiles in RAM Disk:\n";
-    int h_len = helper_strlen(header);
-    if (pos + h_len < max_len) {
-        helper_strcpy(out + pos, header);
-        pos += h_len;
-    }
-    
-    int file_count = 0;
+
+    pos = s_app(out, pos, max_len, "\n /");
+    if (dir[0]) pos = s_app(out, pos, max_len, dir);
+    pos = s_app(out, pos, max_len, "\n");
+
+    int count = 0;
+    /* Directories first */
     for (int i = 0; i < MAX_VFS_FILES; i++) {
-        if (ramdisk[i].active) {
-            file_count++;
-            const char* prefix = "- ";
-            int p_len = helper_strlen(prefix);
-            if (pos + p_len < max_len) {
-                helper_strcpy(out + pos, prefix);
-                pos += p_len;
-            }
-            
-            int n_len = helper_strlen(ramdisk[i].name);
-            if (pos + n_len < max_len) {
-                helper_strcpy(out + pos, ramdisk[i].name);
-                pos += n_len;
-            }
-            
-            const char* mid = " (";
-            int m_len = helper_strlen(mid);
-            if (pos + m_len < max_len) {
-                helper_strcpy(out + pos, mid);
-                pos += m_len;
-            }
-            
-            // Format file size integer to string
-            char sz_str[16];
-            int sz = ramdisk[i].size;
-            int sz_idx = 0;
-            if (sz == 0) {
-                sz_str[sz_idx++] = '0';
-            } else {
-                char temp[16];
-                int temp_idx = 0;
-                while (sz > 0) {
-                    temp[temp_idx++] = '0' + (sz % 10);
-                    sz /= 10;
-                }
-                for (int j = temp_idx - 1; j >= 0; j--) {
-                    sz_str[sz_idx++] = temp[j];
-                }
-            }
-            sz_str[sz_idx] = '\0';
-            
-            if (pos + sz_idx < max_len) {
-                helper_strcpy(out + pos, sz_str);
-                pos += sz_idx;
-            }
-            
-            const char* suffix = " bytes)\n";
-            int s_len = helper_strlen(suffix);
-            if (pos + s_len < max_len) {
-                helper_strcpy(out + pos, suffix);
-                pos += s_len;
-            }
-        }
+        if (!ramdisk[i].active) continue;
+        if (!ramdisk[i].is_dir) continue;
+        if (s_cmp(ramdisk[i].parent, dir) != 0) continue;
+        count++;
+        pos = s_app(out, pos, max_len, "  [DIR]  ");
+        pos = s_app(out, pos, max_len, ramdisk[i].name);
+        pos = s_app(out, pos, max_len, "/\n");
     }
-    
-    if (file_count == 0) {
-        const char* empty_msg = "[No files found]\n";
-        int e_len = helper_strlen(empty_msg);
-        if (pos + e_len < max_len) {
-            helper_strcpy(out + pos, empty_msg);
-            pos += e_len;
-        }
+    /* Files next */
+    for (int i = 0; i < MAX_VFS_FILES; i++) {
+        if (!ramdisk[i].active) continue;
+        if (ramdisk[i].is_dir) continue;
+        if (s_cmp(ramdisk[i].parent, dir) != 0) continue;
+        count++;
+        pos = s_app(out, pos, max_len, "  [FILE] ");
+        pos = s_app(out, pos, max_len, ramdisk[i].name);
+        pos = s_app(out, pos, max_len, "  (");
+        pos = s_app_int(out, pos, max_len, ramdisk[i].size);
+        pos = s_app(out, pos, max_len, " B)\n");
     }
-    
+    if (count == 0)
+        pos = s_app(out, pos, max_len, "  (empty)\n");
+
     return 1;
 }
 
-// Retrieve file data stream from RAM partition
-int vfs_read(const char* name, char* out, int max_len) {
+/* Read a file */
+int vfs_read(const char* name, const char* dir, char* out, int max_len) {
     for (int i = 0; i < MAX_VFS_FILES; i++) {
-        if (ramdisk[i].active && helper_strcmp(ramdisk[i].name, name) == 0) {
-            int len = ramdisk[i].size;
-            if (len >= max_len) {
-                len = max_len - 1;
-            }
-            for (int j = 0; j < len; j++) {
-                out[j] = ramdisk[i].content[j];
-            }
-            out[len] = '\0';
-            return 1;
-        }
+        if (!ramdisk[i].active || ramdisk[i].is_dir) continue;
+        if (s_cmp(ramdisk[i].name,   name) != 0) continue;
+        if (s_cmp(ramdisk[i].parent, dir)  != 0) continue;
+        int len = ramdisk[i].size;
+        if (len >= max_len) len = max_len - 1;
+        for (int j = 0; j < len; j++) out[j] = ramdisk[i].content[j];
+        out[len] = '\0';
+        return 1;
     }
     return 0;
 }
 
-// Write/Create content blocks into active memory slots
-int vfs_write(const char* name, const char* content) {
-    int target_idx = -1;
-    
-    // Check if file already exists for overwriting
+/* Write / create a file */
+int vfs_write(const char* name, const char* dir, const char* content) {
+    int tgt = -1;
+    /* Overwrite existing */
     for (int i = 0; i < MAX_VFS_FILES; i++) {
-        if (ramdisk[i].active && helper_strcmp(ramdisk[i].name, name) == 0) {
-            target_idx = i;
-            break;
-        }
+        if (ramdisk[i].active && !ramdisk[i].is_dir &&
+            s_cmp(ramdisk[i].name,   name) == 0 &&
+            s_cmp(ramdisk[i].parent, dir)  == 0) { tgt = i; break; }
     }
-    
-    // If not exists, scan for first empty slot
-    if (target_idx == -1) {
+    /* Empty slot */
+    if (tgt == -1) {
         for (int i = 0; i < MAX_VFS_FILES; i++) {
-            if (!ramdisk[i].active) {
-                target_idx = i;
-                break;
-            }
+            if (!ramdisk[i].active) { tgt = i; break; }
         }
     }
-    
-    if (target_idx == -1) {
-        return 0; // RAM disk full
-    }
-    
-    ramdisk[target_idx].active = 1;
-    helper_strcpy(ramdisk[target_idx].name, name);
-    
-    int len = helper_strlen(content);
-    if (len >= MAX_FILE_SIZE) {
-        len = MAX_FILE_SIZE - 1;
-    }
-    
-    for (int j = 0; j < len; j++) {
-        ramdisk[target_idx].content[j] = content[j];
-    }
-    ramdisk[target_idx].content[len] = '\0';
-    ramdisk[target_idx].size = len;
-    
+    if (tgt == -1) return 0; /* RAM disk full */
+
+    ramdisk[tgt].active = 1;
+    ramdisk[tgt].is_dir = 0;
+    s_cpy(ramdisk[tgt].name,   name);
+    s_cpy(ramdisk[tgt].parent, dir);
+
+    int len = s_len(content);
+    if (len >= MAX_FILE_SIZE) len = MAX_FILE_SIZE - 1;
+    for (int j = 0; j < len; j++) ramdisk[tgt].content[j] = content[j];
+    ramdisk[tgt].content[len] = '\0';
+    ramdisk[tgt].size = len;
     return 1;
 }
 
-// Retract content allocations from slots
-int vfs_delete(const char* name) {
+/* Delete a file */
+int vfs_delete(const char* name, const char* dir) {
     for (int i = 0; i < MAX_VFS_FILES; i++) {
-        if (ramdisk[i].active && helper_strcmp(ramdisk[i].name, name) == 0) {
-            ramdisk[i].active = 0;
-            ramdisk[i].name[0] = '\0';
-            ramdisk[i].content[0] = '\0';
-            ramdisk[i].size = 0;
-            return 1;
-        }
+        if (!ramdisk[i].active) continue;
+        if (ramdisk[i].is_dir)  continue;
+        if (s_cmp(ramdisk[i].name,   name) != 0) continue;
+        if (s_cmp(ramdisk[i].parent, dir)  != 0) continue;
+        ramdisk[i].active     = 0;
+        ramdisk[i].is_dir     = 0;
+        ramdisk[i].size       = 0;
+        ramdisk[i].name[0]    = '\0';
+        ramdisk[i].parent[0]  = '\0';
+        ramdisk[i].content[0] = '\0';
+        return 1;
     }
     return 0;
 }
 
-// Find files by prefix for shell tab-completion
-// Returns: number of matching files found (match_out filled if exactly 1 found)
-int vfs_find_prefix(const char* prefix, char* match_out, int max_len) {
-    int prefix_len = helper_strlen(prefix);
+/* Create a directory */
+int vfs_mkdir(const char* name, const char* parent_dir) {
+    /* Already exists? */
+    for (int i = 0; i < MAX_VFS_FILES; i++) {
+        if (ramdisk[i].active && ramdisk[i].is_dir &&
+            s_cmp(ramdisk[i].name,   name)       == 0 &&
+            s_cmp(ramdisk[i].parent, parent_dir) == 0)
+            return 0;
+    }
+    int tgt = -1;
+    for (int i = 0; i < MAX_VFS_FILES; i++) {
+        if (!ramdisk[i].active) { tgt = i; break; }
+    }
+    if (tgt == -1) return 0;
+
+    ramdisk[tgt].active     = 1;
+    ramdisk[tgt].is_dir     = 1;
+    ramdisk[tgt].size       = 0;
+    ramdisk[tgt].content[0] = '\0';
+    s_cpy(ramdisk[tgt].name,   name);
+    s_cpy(ramdisk[tgt].parent, parent_dir);
+    return 1;
+}
+
+/* Check if a directory exists */
+int vfs_dir_exists(const char* name, const char* parent_dir) {
+    for (int i = 0; i < MAX_VFS_FILES; i++) {
+        if (ramdisk[i].active && ramdisk[i].is_dir &&
+            s_cmp(ramdisk[i].name,   name)       == 0 &&
+            s_cmp(ramdisk[i].parent, parent_dir) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+/* Tab-completion: find filenames/dirnames in `dir` starting with `prefix`.
+   Returns match count; fills match_out when exactly 1 match found. */
+int vfs_find_prefix(const char* dir, const char* prefix,
+                    char* match_out, int max_len) {
+    int pfx_len = s_len(prefix);
     int matches = 0;
     match_out[0] = '\0';
 
     for (int i = 0; i < MAX_VFS_FILES; i++) {
         if (!ramdisk[i].active) continue;
+        if (s_cmp(ramdisk[i].parent, dir) != 0) continue;
 
-        // Compare name against prefix character by character
+        /* Prefix match */
         int ok = 1;
-        for (int j = 0; j < prefix_len; j++) {
-            if (ramdisk[i].name[j] == '\0' || ramdisk[i].name[j] != prefix[j]) {
-                ok = 0;
-                break;
+        for (int j = 0; j < pfx_len; j++) {
+            if (!ramdisk[i].name[j] || ramdisk[i].name[j] != prefix[j]) {
+                ok = 0; break;
             }
         }
+        if (!ok) continue;
 
-        if (ok) {
-            matches++;
-            if (matches == 1) {
-                // Copy this match into output buffer
-                int n_len = helper_strlen(ramdisk[i].name);
-                if (n_len >= max_len) n_len = max_len - 1;
-                for (int k = 0; k < n_len; k++) {
-                    match_out[k] = ramdisk[i].name[k];
-                }
-                match_out[n_len] = '\0';
-            }
+        matches++;
+        if (matches == 1) {
+            int n = s_len(ramdisk[i].name);
+            if (n >= max_len) n = max_len - 1;
+            for (int k = 0; k < n; k++) match_out[k] = ramdisk[i].name[k];
+            match_out[n] = '\0';
         }
     }
-
     return matches;
 }

@@ -2,6 +2,8 @@
  * 🌅 Sunset OS (Ghuroob OS) — LAZ Kernel Main Coordinator
  * File: kernel.c
  * Author: Arshad Pasha
+ * Copyright (c) 2026 Arshad Pasha. All Rights Reserved.
+ * License: Private. Authorized use only under the Sunset OS License Agreement.
  * Description: High-performance 32-bit modular freestanding graphics kernel.
  *              Now features preemptive multi-tasking, PIT scheduling, and
  *              interrupt-driven keyboard buffers.
@@ -42,6 +44,7 @@ static int shell_len = 0;
 static char garden_buffer[512];
 static char notes_buffer[1024];
 static char show_garden = 0;
+static char cwd[32] = "";
 
 static void helper_strcpy(char* dest, const char* src) {
     int i = 0;
@@ -171,6 +174,29 @@ static unsigned int mystrlen(const char* str) {
     return len;
 }
 
+static void append_to_shell(const char* str);
+
+static void build_prompt(char* out) {
+    helper_strcpy(out, "ghuroob@sunset:/");
+    int len = mystrlen(out);
+    if (cwd[0] != '\0') {
+        helper_strcpy(out + len, cwd);
+        len = mystrlen(out);
+    }
+    helper_strcpy(out + len, "$ ");
+}
+
+static int get_prompt_len() {
+    return 17 + mystrlen(cwd);
+}
+
+static void append_prompt_to_shell() {
+    append_to_shell("\n");
+    char prompt[64];
+    build_prompt(prompt);
+    append_to_shell(prompt);
+}
+
 static void uint_to_str(unsigned int val, char* buf) {
     int i = 0;
     if (val == 0) {
@@ -211,11 +237,11 @@ static int sh_strncmp(const char* s1, const char* s2, int n) {
 }
 
 static int find_last_prompt_pos() {
-    int prompt_len = 13;
-    const char* p = "sunset-OS:~$ ";
-    for (int k = shell_len - prompt_len; k >= 0; k--) {
+    const char* p = "ghuroob@sunset:";
+    int p_len = 15;
+    for (int k = shell_len - p_len; k >= 0; k--) {
         char match = 1;
-        for (int p_idx = 0; p_idx < prompt_len; p_idx++) {
+        for (int p_idx = 0; p_idx < p_len; p_idx++) {
             if (shell_buffer[k + p_idx] != p[p_idx]) {
                 match = 0;
                 break;
@@ -308,8 +334,14 @@ void sakura_anim_task() {
 
 static void clear_shell() {
     memset(shell_buffer, 0, 2048);
-    memcpy(shell_buffer, "[OK] Shell active.\nsunset-OS:~$ ", 32);
-    shell_len = 32;
+    memcpy(shell_buffer, "[SunsetSH] Serene Active Workspace.\n", 36);
+    shell_len = 36;
+    char prompt[64];
+    build_prompt(prompt);
+    int p_len = mystrlen(prompt);
+    memcpy(shell_buffer + shell_len, prompt, p_len);
+    shell_len += p_len;
+    shell_buffer[shell_len] = '\0';
 }
 
 static void append_to_shell(const char* str) {
@@ -379,6 +411,20 @@ void kernel_main(unsigned int* vesa_framebuffer) {
         } else {
             draw_string("Opening serene workspace...", 285, 320, 220, 220, 220);
         }
+
+        // Clear quote area and cycle peaceful sunset quotes
+        draw_rect(210, 360, 380, 30, 30, 25, 35);
+        if (p < 20) {
+            draw_string("\"Sunset reminds us tomorrow is another opportunity.\"", 208, 360, 245, 235, 230);
+        } else if (p < 40) {
+            draw_string("\"Peace is the beauty of life. It is sunshine.\"", 220, 360, 245, 235, 230);
+        } else if (p < 60) {
+            draw_string("\"Rest when you are weary. Refresh yourself.\"", 232, 360, 245, 235, 230);
+        } else if (p < 80) {
+            draw_string("\"Breathe in the calm. Let go of the noise.\"", 236, 360, 245, 235, 230);
+        } else {
+            draw_string("\"Every sunset brings the promise of a new dawn.\"", 216, 360, 245, 235, 230);
+        }
         
         flush_buffer();
         delay(1200000); // Smooth progress delay
@@ -411,7 +457,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
 
     init_window(&win_diag, 40, 70, 320, 210, "System Diagnostics", diag_buffer);
 
-    vfs_write("notes.txt",
+    vfs_write("notes.txt", "",
                 "WELCOME TO SUNSET OS\n"
                 "Watching natural sunsets brings\n"
                 "peace, motivation and focus.\n\n"
@@ -419,7 +465,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 "distractions, letting you work\n"
                 "in a serene computing environment.\n\n"
                 "Breathe in. Rest. Reflect.");
-    vfs_read("notes.txt", notes_buffer, 1024);
+    vfs_read("notes.txt", "", notes_buffer, 1024);
     init_window(&win_notes, 440, 70, 320, 210, "Calm Notes", notes_buffer);
 
     clear_shell();
@@ -482,7 +528,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 if (history_count > 0 && history_nav_idx > 0) {
                     history_nav_idx--;
                     int last_prompt = find_last_prompt_pos();
-                    shell_len = last_prompt + 13;
+                    shell_len = last_prompt + get_prompt_len();
                     shell_buffer[shell_len] = '\0';
                     append_to_shell(cmd_history[history_nav_idx % 5]);
                 }
@@ -492,7 +538,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 if (history_nav_idx < history_count) {
                     history_nav_idx++;
                     int last_prompt = find_last_prompt_pos();
-                    shell_len = last_prompt + 13;
+                    shell_len = last_prompt + get_prompt_len();
                     shell_buffer[shell_len] = '\0';
                     if (history_nav_idx < history_count) {
                         append_to_shell(cmd_history[history_nav_idx % 5]);
@@ -502,7 +548,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
             // ── Tab: smart autocomplete (command name or VFS filename)
             } else if (ascii == '\t') {
                 int last_prompt = find_last_prompt_pos();
-                int cmd_start  = last_prompt + 13;
+                int cmd_start  = last_prompt + get_prompt_len();
                 if (shell_len > cmd_start) {
                     char partial[64];
                     int p_len = 0;
@@ -522,7 +568,8 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         const char* cmds[] = {
                             "help", "clear", "ambient", "panic", "about", "chime",
                             "play", "history", "ifconfig", "ping", "fetch", "garden",
-                            "note", "lofi", "ls", "cat", "touch", "write", "rm", 0
+                            "note", "lofi", "ls", "cat", "touch", "write", "rm",
+                            "mkdir", "cd", "pwd", 0
                         };
                         const char* hit = 0; int cnt = 0;
                         for (int c = 0; cmds[c] != 0; c++) {
@@ -546,7 +593,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         }
                         file_partial[fp_len] = '\0';
                         char matched_file[32];
-                        int matches = vfs_find_prefix(file_partial, matched_file, 32);
+                        int matches = vfs_find_prefix(cwd, file_partial, matched_file, 32);
                         if (matches == 1) {
                             // Erase the partial filename, write the completed one
                             shell_len = cmd_start + space_pos + 1;
@@ -558,7 +605,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
 
             } else if (ascii == '\b') {
                 int last_prompt = find_last_prompt_pos();
-                if (shell_len > last_prompt + 13) {
+                if (shell_len > last_prompt + get_prompt_len()) {
                     shell_len--;
                     shell_buffer[shell_len] = '\0';
                 }
@@ -567,7 +614,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 char cmd[128];
                 int cmd_idx = 0;
                 int last_prompt = find_last_prompt_pos();
-                int cmd_start = last_prompt + 13;
+                int cmd_start = last_prompt + get_prompt_len();
                 for (int k = cmd_start; k < shell_len && cmd_idx < 120; k++) {
                     cmd[cmd_idx++] = shell_buffer[k];
                 }
@@ -583,20 +630,20 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 
                 // Process shell commands
                 if (cmd_idx == 0) {
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "help") == 0) {
-                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3],\n          ls, cat [file], touch [file],\n          write [file] [txt], rm [file]");
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3],\n          ls, cd [dir], cd .., mkdir [dir],\n          pwd, cat [file], touch [file],\n          write [file] [txt], rm [file]");
+                    append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "ls") == 0) {
                     char file_list[512];
-                    vfs_list(file_list, 512);
+                    vfs_list(cwd, file_list, 512);
                     append_to_shell(file_list);
-                    append_to_shell("sunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "cat ", 4) == 0) {
                     const char* filename = cmd + 4;
                     while (*filename == ' ') filename++;
                     char file_content[512];
-                    if (vfs_read(filename, file_content, 512)) {
+                    if (vfs_read(filename, cwd, file_content, 512)) {
                         append_to_shell("\n");
                         append_to_shell(file_content);
                         append_to_shell("\n");
@@ -605,18 +652,18 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         append_to_shell(filename);
                         append_to_shell("\n");
                     }
-                    append_to_shell("sunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "touch ", 6) == 0) {
                     const char* filename = cmd + 6;
                     while (*filename == ' ') filename++;
-                    if (vfs_write(filename, "")) {
+                    if (vfs_write(filename, cwd, "")) {
                         append_to_shell("\n[OK] File created: ");
                         append_to_shell(filename);
                         append_to_shell("\n");
                     } else {
                         append_to_shell("\n[Error] Failed to create file.\n");
                     }
-                    append_to_shell("sunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "write ", 6) == 0) {
                     const char* p_arg = cmd + 6;
                     while (*p_arg == ' ') p_arg++;
@@ -640,24 +687,24 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                                 temp_content[tc_idx++] = *content++;
                             }
                             temp_content[tc_idx] = '\0';
-                            if (vfs_write(filename, temp_content)) {
+                            if (vfs_write(filename, cwd, temp_content)) {
                                 append_to_shell("\n[OK] Wrote to ");
                                 append_to_shell(filename);
                                 append_to_shell("\n");
-                                if (sh_strcmp(filename, "notes.txt") == 0) {
-                                    vfs_read("notes.txt", notes_buffer, 1024);
+                                if (sh_strcmp(filename, "notes.txt") == 0 && cwd[0] == '\0') {
+                                    vfs_read("notes.txt", "", notes_buffer, 1024);
                                     win_notes.content = notes_buffer;
                                 }
                             } else {
                                 append_to_shell("\n[Error] Write failed.\n");
                             }
                         } else {
-                            if (vfs_write(filename, content)) {
+                            if (vfs_write(filename, cwd, content)) {
                                 append_to_shell("\n[OK] Wrote to ");
                                 append_to_shell(filename);
                                 append_to_shell("\n");
-                                if (sh_strcmp(filename, "notes.txt") == 0) {
-                                    vfs_read("notes.txt", notes_buffer, 1024);
+                                if (sh_strcmp(filename, "notes.txt") == 0 && cwd[0] == '\0') {
+                                    vfs_read("notes.txt", "", notes_buffer, 1024);
                                     win_notes.content = notes_buffer;
                                 }
                             } else {
@@ -667,22 +714,66 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     } else {
                         append_to_shell("\nUsage: write [file] [text]\n");
                     }
-                    append_to_shell("sunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "rm ", 3) == 0) {
                     const char* filename = cmd + 3;
                     while (*filename == ' ') filename++;
-                    if (vfs_delete(filename)) {
+                    if (vfs_delete(filename, cwd)) {
                         append_to_shell("\n[OK] File deleted: ");
                         append_to_shell(filename);
                         append_to_shell("\n");
-                        if (sh_strcmp(filename, "notes.txt") == 0) {
+                        if (sh_strcmp(filename, "notes.txt") == 0 && cwd[0] == '\0') {
                             notes_buffer[0] = '\0';
                             win_notes.content = notes_buffer;
                         }
                     } else {
                         append_to_shell("\n[Error] File not found.\n");
                     }
-                    append_to_shell("sunset-OS:~$ ");
+                    append_prompt_to_shell();
+                } else if (sh_strncmp(cmd, "mkdir ", 6) == 0) {
+                    const char* dirname = cmd + 6;
+                    while (*dirname == ' ') dirname++;
+                    if (dirname[0] != '\0') {
+                        if (vfs_mkdir(dirname, cwd)) {
+                            append_to_shell("\n[OK] Directory created: ");
+                            append_to_shell(dirname);
+                            append_to_shell("\n");
+                        } else {
+                            append_to_shell("\n[Error] Failed to create directory.\n");
+                        }
+                    } else {
+                        append_to_shell("\nUsage: mkdir [directory_name]\n");
+                    }
+                    append_prompt_to_shell();
+                } else if (sh_strncmp(cmd, "cd ", 3) == 0 || sh_strcmp(cmd, "cd") == 0) {
+                    const char* dirname = "";
+                    if (sh_strncmp(cmd, "cd ", 3) == 0) {
+                        dirname = cmd + 3;
+                        while (*dirname == ' ') dirname++;
+                    }
+                    
+                    if (dirname[0] == '\0' || sh_strcmp(dirname, "/") == 0) {
+                        cwd[0] = '\0';
+                        append_prompt_to_shell();
+                    } else if (sh_strcmp(dirname, "..") == 0) {
+                        cwd[0] = '\0'; // flat parent back-to-root
+                        append_prompt_to_shell();
+                    } else {
+                        if (vfs_dir_exists(dirname, cwd)) {
+                            helper_strcpy(cwd, dirname);
+                            append_prompt_to_shell();
+                        } else {
+                            append_to_shell("\n[Error] Directory not found: ");
+                            append_to_shell(dirname);
+                            append_prompt_to_shell();
+                        }
+                    }
+                } else if (sh_strcmp(cmd, "pwd") == 0) {
+                    append_to_shell("\n/");
+                    if (cwd[0] != '\0') {
+                        append_to_shell(cwd);
+                    }
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "note ", 5) == 0 || sh_strcmp(cmd, "note") == 0) {
                     const char* msg = cmd + 4;
                     if (sh_strncmp(cmd, "note ", 5) == 0) msg = cmd + 5;
@@ -691,7 +782,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     if (*msg != '\0') {
                         char current_notes[1024];
                         memset(current_notes, 0, 1024);
-                        vfs_read("notes.txt", current_notes, 1024);
+                        vfs_read("notes.txt", "", current_notes, 1024);
                         
                         int cur_len = mystrlen(current_notes);
                         if (cur_len < 900) {
@@ -709,8 +800,8 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                             }
                             current_notes[cur_len] = '\0';
                             
-                            vfs_write("notes.txt", current_notes);
-                            vfs_read("notes.txt", notes_buffer, 1024);
+                            vfs_write("notes.txt", "", current_notes);
+                            vfs_read("notes.txt", "", notes_buffer, 1024);
                             win_notes.content = notes_buffer;
                             append_to_shell("\n[OK] Note appended and synced to notes.txt");
                         } else {
@@ -719,7 +810,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     } else {
                         append_to_shell("\nUsage: note [message]\nExample: note take a deep breath");
                     }
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "lofi ", 5) == 0 || sh_strcmp(cmd, "lofi") == 0) {
                     const char* p_arg = cmd + 4;
                     if (sh_strncmp(cmd, "lofi ", 5) == 0) p_arg = cmd + 5;
@@ -749,12 +840,12 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     } else {
                         append_to_shell("\nUsage: lofi [1-3]\nPresets: 1 (Tranquility), 2 (Serenity), 3 (Golden Sunset)");
                     }
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (cmd[0] == 'i' && cmd[1] == 'f' && cmd[2] == 'c' && cmd[3] == 'o' && cmd[4] == 'n' && cmd[5] == 'f' && cmd[6] == 'i' && cmd[7] == 'g') {
                     char out_buf[1024];
                     net_ifconfig(out_buf, 1024);
                     append_to_shell(out_buf);
-                    append_to_shell("sunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "ping ", 5) == 0) {
                     const char* ip = cmd + 5;
                     while (*ip == ' ') ip++;
@@ -765,7 +856,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     } else {
                         append_to_shell("\nUsage: ping [ip]\nExample: ping 8.8.8.8\n");
                     }
-                    append_to_shell("sunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "fetch ", 6) == 0) {
                     const char* url = cmd + 6;
                     while (*url == ' ') url++;
@@ -776,13 +867,13 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     } else {
                         append_to_shell("\nUsage: fetch [url]\nExample: fetch sunset://rest\n");
                     }
-                    append_to_shell("sunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "clear") == 0) {
                     clear_shell();
                 } else if (sh_strcmp(cmd, "chime") == 0) {
                     append_to_shell("\nReplaying serene welcome chime...");
                     play_startup_chime();
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "play ", 5) == 0) {
                     const char* p_arg = cmd + 5;
                     while (*p_arg == ' ') p_arg++;
@@ -805,10 +896,10 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     } else {
                         append_to_shell("\nUsage: play [freq_hz] [duration_ms]\nExample: play 440 200");
                     }
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "about") == 0) {
                     append_to_shell("\nSUNSET OS naming philosophy:\nInspired by daily sunset walks between Asr and Maghrib.\nA restorative time that refreshes, motivates, and inspires.\nDesigned for serene focus.");
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "history") == 0) {
                     append_to_shell("\nRecent Command History Logs:");
                     int start = (history_count > 5) ? (history_count - 5) : 0;
@@ -816,7 +907,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         append_to_shell("\n- ");
                         append_to_shell(cmd_history[h % 5]);
                     }
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "ambient") == 0) {
                     append_to_shell("\nInitiating breathing Ambient OS Mode...");
                     is_ambient = 1;
@@ -829,12 +920,12 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     win_shell.active = 0;
                     win_garden.active = 1;
                     draw_garden_content(garden_buffer);
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "panic") == 0) {
                     kpanic("USER TRIGGERED CORE EXCEPTION PANIC");
                 } else {
                     append_to_shell("\n[Error] Unknown command. Type 'help'");
-                    append_to_shell("\nsunset-OS:~$ ");
+                    append_prompt_to_shell();
                 }
             } else {
                 // Append normal characters

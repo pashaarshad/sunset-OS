@@ -1,3 +1,10 @@
+/* =====================================================================
+ * 🌅 Sunset OS (Ghuroob OS) — Interactive Shell Simulator
+ * File: Terminal.jsx
+ * Author: Arshad Pasha
+ * Copyright (c) 2026 Arshad Pasha. All Rights Reserved.
+ * License: Private. Authorized use only under the Sunset OS License Agreement.
+ * ===================================================================== */
 import React, { useState, useEffect, useRef } from 'react';
 
 export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openTextEditor, triggerSystemAction }) {
@@ -9,6 +16,7 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
   const [input, setInput] = useState('');
   const [isMatrixActive, setIsMatrixActive] = useState(false);
   const [cmdHistoryList, setCmdHistoryList] = useState([]);
+  const [cwd, setCwd] = useState('');
   const terminalEndRef = useRef(null);
 
   // Auto scroll to bottom of logs
@@ -67,6 +75,17 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
     return JSON.parse(localStorage.getItem('sunset_os_vfs') || '[]');
   };
 
+  const getParentIdForCwd = (path) => {
+    if (!path) return 'root';
+    if (path.toLowerCase() === 'documents') return '1';
+    if (path.toLowerCase() === 'pictures') return '2';
+    if (path.toLowerCase() === 'music') return '3';
+    if (path.toLowerCase() === 'videos') return '4';
+    const files = getFilesList();
+    const found = files.find(item => item.name.toLowerCase() === path.toLowerCase() && item.type === 'folder');
+    return found ? found.id : null;
+  };
+
   const handleCommand = (cmdStr) => {
     const trimmed = cmdStr.trim();
     if (!trimmed) return;
@@ -75,7 +94,8 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
     const command = parts[0].toLowerCase();
     const args = parts.slice(1);
 
-    const newHistory = [...history, { text: `sunset-OS:~$ ${trimmed}`, type: "input" }];
+    const promptPrefix = `ghuroob@sunset:/${cwd}$ `;
+    const newHistory = [...history, { text: `${promptPrefix}${trimmed}`, type: "input" }];
     
     // Save to cmd history list
     setCmdHistoryList(prev => [...prev, trimmed]);
@@ -86,7 +106,12 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           { text: "Available Commands:", type: "info" },
           { text: "  help        - Display list of shell tools.", type: "text" },
           { text: "  ls          - List files & folders in current directory.", type: "text" },
+          { text: "  cd [dir]    - Change current working directory.", type: "text" },
+          { text: "  mkdir [dir] - Create a new directory in current location.", type: "text" },
+          { text: "  pwd         - Print current working directory.", type: "text" },
           { text: "  cat [file]  - Display contents of a text file.", type: "text" },
+          { text: "  touch [file]- Create an empty file.", type: "text" },
+          { text: "  write [f] [m]- Overwrite or write content to a file.", type: "text" },
           { text: "  create [file] [msg] - Create a text file with message.", type: "text" },
           { text: "  rm [file]   - Remove/Delete a file.", type: "text" },
           { text: "  ifconfig    - Render mock active/loopback network interfaces.", type: "text" },
@@ -184,32 +209,92 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
         playCmdChime(true);
         break;
 
-      case 'ls':
+      case 'ls': {
         const files = getFilesList();
-        // Since we simulate a single level view for shell simplicity
-        const roots = files.filter(item => item.parent === 'root' || item.parent === '1');
-        if (roots.length === 0) {
+        const parentId = getParentIdForCwd(cwd);
+        const children = files.filter(item => item.parent === parentId);
+        if (children.length === 0) {
           newHistory.push({ text: "Empty directory.", type: "text" });
           playCmdChime(false);
         } else {
-          newHistory.push({ text: "Contents of /Home:", type: "info" });
-          roots.forEach(f => {
+          newHistory.push({ text: `Contents of /${cwd}:`, type: "info" });
+          children.forEach(f => {
             const indicator = f.type === 'folder' ? '[DIR]  ' : '       ';
-            const colorClass = f.type === 'folder' ? 'text-amber-400' : 'text-slate-200';
             newHistory.push({ text: `  ${indicator} ${f.name}`, type: f.type === 'folder' ? "folder" : "file" });
           });
           playCmdChime(true);
         }
         break;
+      }
 
-      case 'cat':
+      case 'cd': {
+        if (args.length === 0 || args[0] === '/') {
+          setCwd('');
+          playCmdChime(true);
+        } else if (args[0] === '..') {
+          setCwd('');
+          playCmdChime(true);
+        } else {
+          const vfs = getFilesList();
+          const targetDir = args[0];
+          const parentId = getParentIdForCwd(cwd);
+          const target = vfs.find(item => item.name.toLowerCase() === targetDir.toLowerCase() && item.type === 'folder' && item.parent === parentId);
+          if (target) {
+            setCwd(target.name);
+            playCmdChime(true);
+          } else {
+            newHistory.push({ text: `Error: Directory '${targetDir}' not found in /${cwd}.`, type: "error" });
+            playCmdChime(false);
+          }
+        }
+        break;
+      }
+
+      case 'mkdir': {
+        if (args.length === 0) {
+          newHistory.push({ text: "Usage: mkdir [directory_name]", type: "error" });
+          playCmdChime(false);
+        } else {
+          const vfs = getFilesList();
+          const dirName = args[0];
+          const parentId = getParentIdForCwd(cwd);
+          const exists = vfs.find(item => item.name.toLowerCase() === dirName.toLowerCase() && item.type === 'folder' && item.parent === parentId);
+          if (exists) {
+            newHistory.push({ text: `Error: Directory '${dirName}' already exists.`, type: "error" });
+            playCmdChime(false);
+          } else {
+            const newFolder = {
+              id: Date.now().toString(),
+              name: dirName,
+              type: 'folder',
+              parent: parentId,
+              content: ''
+            };
+            const updated = [...vfs, newFolder];
+            localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
+            window.dispatchEvent(new Event('sunset_vfs_changed'));
+            newHistory.push({ text: `[OK] Directory created: ${dirName}`, type: "success" });
+            playCmdChime(true);
+          }
+        }
+        break;
+      }
+
+      case 'pwd': {
+        newHistory.push({ text: `/${cwd}`, type: "text" });
+        playCmdChime(true);
+        break;
+      }
+
+      case 'cat': {
         if (args.length === 0) {
           newHistory.push({ text: "Error: Please specify file name. Usage: cat welcome.txt", type: "error" });
           playCmdChime(false);
         } else {
           const vfs = getFilesList();
           const targetName = args[0];
-          const target = vfs.find(item => item.name.toLowerCase() === targetName.toLowerCase() && item.type === 'file');
+          const parentId = getParentIdForCwd(cwd);
+          const target = vfs.find(item => item.name.toLowerCase() === targetName.toLowerCase() && item.type === 'file' && item.parent === parentId);
           if (target) {
             newHistory.push({ text: `=== Content of ${target.name} ===`, type: "info" });
             const lines = target.content.split('\n');
@@ -218,13 +303,69 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
             });
             playCmdChime(true);
           } else {
-            newHistory.push({ text: `Error: File '${targetName}' not found. Ensure file exists and contains .txt extension.`, type: "error" });
+            newHistory.push({ text: `Error: File '${targetName}' not found in /${cwd}.`, type: "error" });
             playCmdChime(false);
           }
         }
         break;
+      }
 
-      case 'create':
+      case 'touch': {
+        if (args.length === 0) {
+          newHistory.push({ text: "Error: Please specify filename. Usage: touch notes.txt", type: "error" });
+          playCmdChime(false);
+        } else {
+          const vfs = getFilesList();
+          const fileName = args[0];
+          const parentId = getParentIdForCwd(cwd);
+          const newFile = {
+            id: Date.now().toString(),
+            name: fileName,
+            type: 'file',
+            parent: parentId,
+            content: ''
+          };
+          const updated = [...vfs, newFile];
+          localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
+          window.dispatchEvent(new Event('sunset_vfs_changed'));
+          newHistory.push({ text: `[OK] File created: ${fileName}`, type: "success" });
+          playCmdChime(true);
+        }
+        break;
+      }
+
+      case 'write': {
+        if (args.length < 2) {
+          newHistory.push({ text: "Error: Please specify filename and content. Usage: write notes.txt 'Breathe in.'", type: "error" });
+          playCmdChime(false);
+        } else {
+          const vfs = getFilesList();
+          const fileName = args[0];
+          const content = args.slice(1).join(' ').replace(/['"]/g, ''); // strip quotes
+          const parentId = getParentIdForCwd(cwd);
+          const existing = vfs.find(item => item.name.toLowerCase() === fileName.toLowerCase() && item.type === 'file' && item.parent === parentId);
+          let updated;
+          if (existing) {
+            updated = vfs.map(item => item.id === existing.id ? { ...item, content } : item);
+          } else {
+            const newFile = {
+              id: Date.now().toString(),
+              name: fileName,
+              type: 'file',
+              parent: parentId,
+              content
+            };
+            updated = [...vfs, newFile];
+          }
+          localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
+          window.dispatchEvent(new Event('sunset_vfs_changed'));
+          newHistory.push({ text: `[OK] Wrote to ${fileName}`, type: "success" });
+          playCmdChime(true);
+        }
+        break;
+      }
+
+      case 'create': {
         if (args.length < 2) {
           newHistory.push({ text: "Error: Please specify filename and content. Usage: create sunset.txt 'Hello World'", type: "error" });
           playCmdChime(false);
@@ -232,31 +373,34 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           const vfs = getFilesList();
           const fileName = args[0].endsWith('.txt') ? args[0] : `${args[0]}.txt`;
           const content = args.slice(1).join(' ').replace(/['"]/g, ''); // strip quotes
+          const parentId = getParentIdForCwd(cwd);
           
           const newFile = {
             id: Date.now().toString(),
             name: fileName,
             type: 'file',
-            parent: '1', // Documents default
+            parent: parentId,
             content: content
           };
           
           const updated = [...vfs, newFile];
           localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
           window.dispatchEvent(new Event('sunset_vfs_changed'));
-          newHistory.push({ text: `[+] Success: File '${fileName}' created in Documents folder.`, type: "success" });
+          newHistory.push({ text: `[+] Success: File '${fileName}' created in /${cwd}.`, type: "success" });
           playCmdChime(true);
         }
         break;
+      }
 
-      case 'rm':
+      case 'rm': {
         if (args.length === 0) {
           newHistory.push({ text: "Error: Specify file to delete. Usage: rm design_rules.txt", type: "error" });
           playCmdChime(false);
         } else {
           const vfs = getFilesList();
           const targetName = args[0];
-          const match = vfs.find(item => item.name.toLowerCase() === targetName.toLowerCase());
+          const parentId = getParentIdForCwd(cwd);
+          const match = vfs.find(item => item.name.toLowerCase() === targetName.toLowerCase() && item.parent === parentId);
           if (match) {
             const updated = vfs.filter(item => item.id !== match.id);
             localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
@@ -264,11 +408,12 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
             newHistory.push({ text: `[-] Deleted file '${match.name}' successfully.`, type: "success" });
             playCmdChime(true);
           } else {
-            newHistory.push({ text: `Error: File '${targetName}' not found.`, type: "error" });
+            newHistory.push({ text: `Error: File '${targetName}' not found in /${cwd}.`, type: "error" });
             playCmdChime(false);
           }
         }
         break;
+      }
 
       case 'neofetch':
         newHistory.push(
@@ -633,7 +778,7 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
 
       {/* Terminal shell input prompt */}
       <div className="flex items-center gap-2 border-t border-white/5 pt-2">
-        <span className="text-yellow-400 font-bold">sunset-OS:~$</span>
+        <span className="text-yellow-400 font-bold">ghuroob@sunset:/{cwd}$</span>
         <input
           type="text"
           value={input}
