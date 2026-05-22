@@ -141,6 +141,6 @@ if ($env:NO_QEMU -eq 'true' -or $args -contains '-no-qemu') {
 } else {
     Write-Host 'Booting Sunset OS inside QEMU Emulator...' -ForegroundColor Cyan
     
-    # Launch QEMU Emulator as a Floppy Disk with explicit format
-    qemu-system-x86_64 -drive format=raw,file=build/sunset_os.img,if=floppy
+    # Launch QEMU Emulator as a Floppy Disk with explicit format and PC Speaker audio enabled
+    qemu-system-x86_64 -audiodev dsound,id=snd0 -machine pcspk-audiodev=snd0 -drive format=raw,file=build/sunset_os.img,if=floppy
 }
