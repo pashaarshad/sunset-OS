@@ -103,8 +103,6 @@ export default function App() {
     ];
 
     let currentLogIndex = 0;
-    // Play startup chime right at start
-    playStartupWebChime();
 
     const interval = setInterval(() => {
       if (currentLogIndex < logs.length) {
@@ -114,6 +112,8 @@ export default function App() {
         currentLogIndex++;
       } else {
         clearInterval(interval);
+        // Play serene welcome chime arpeggio exactly when fully loaded
+        playStartupWebChime();
         setTimeout(() => {
           setIsBooted(true);
         }, 1200);
