@@ -295,32 +295,10 @@ static void update_diagnostics() {
     memcpy(diag_buffer + mystrlen(diag_buffer), switch_str, mystrlen(switch_str));
     memcpy(diag_buffer + mystrlen(diag_buffer), "\n", 1);
     
-    memcpy(diag_buffer + mystrlen(diag_buffer), "- Active Tasks: 4\n", 18);
+    memcpy(diag_buffer + mystrlen(diag_buffer), "- Active Tasks: 3\n", 18);
     memcpy(diag_buffer + mystrlen(diag_buffer), "  [1] Desktop GUI (Core)\n", 25);
-    memcpy(diag_buffer + mystrlen(diag_buffer), "  [2] Melody Loop (Sound)\n", 26);
-    memcpy(diag_buffer + mystrlen(diag_buffer), "  [3] System Monitor (Active)\n", 30);
-    memcpy(diag_buffer + mystrlen(diag_buffer), "  [4] Sakura Anim (Drifting)\n", 29);
-}
-
-// Task 1: Background Melody Chime Thread
-void melody_chime_task() {
-    while (1) {
-        // Sleep for a tranquil interval (approx 15 seconds)
-        for (int i = 0; i < 15; i++) {
-            sleep_ms(1000);
-        }
-        
-        // Play an elegant relaxing major chord arpeggio sequence
-        play_tone(440); // A4
-        sleep_ms(180);
-        play_tone(554); // C#5
-        sleep_ms(180);
-        play_tone(659); // E5
-        sleep_ms(180);
-        play_tone(880); // A5
-        sleep_ms(300);
-        stop_tone();
-    }
+    memcpy(diag_buffer + mystrlen(diag_buffer), "  [2] System Monitor (Active)\n", 30);
+    memcpy(diag_buffer + mystrlen(diag_buffer), "  [3] Sakura Anim (Drifting)\n", 29);
 }
 
 // Task 2: Background System Diagnostics Update Thread
@@ -410,9 +388,6 @@ void kernel_main(unsigned int* vesa_framebuffer) {
     
     // Draw Progress Bar Outline
     draw_rect_outline(250, 280, 300, 16, 227, 133, 53);
-    
-    // Play the serene welcome melody chime as loading starts
-    play_startup_chime();
 
     for (int p = 0; p <= 100; p++) {
         // Fill Progress Bar
@@ -452,6 +427,9 @@ void kernel_main(unsigned int* vesa_framebuffer) {
         delay(1200000); // Smooth progress delay
     }
 
+    // Play the serene welcome melody chime as loading completes and desktop opens
+    play_startup_chime();
+
     // 5. Initialize Interrupts and IDT Remapping
     init_idt();
 
@@ -459,7 +437,6 @@ void kernel_main(unsigned int* vesa_framebuffer) {
     init_scheduler();
 
     // 7. Register concurrent thread tasks
-    create_task(melody_chime_task, "Melody Loop");
     create_task(sys_monitor_task, "System Monitor");
     create_task(sakura_anim_task, "Sakura Anim");
 
