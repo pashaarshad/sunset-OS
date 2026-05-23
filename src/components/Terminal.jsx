@@ -324,7 +324,18 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           setCwd('');
           playCmdChime(true);
         } else if (args[0] === '..') {
-          setCwd('');
+          // Walk up one level by finding current folder's parent
+          if (cwd) {
+            const vfs = getFilesList();
+            const parentId = getParentIdForCwd(cwd);
+            const currentFolder = vfs.find(i => i.id === parentId);
+            if (currentFolder && currentFolder.parent !== 'root') {
+              const grandparent = vfs.find(i => i.id === currentFolder.parent);
+              setCwd(grandparent ? grandparent.name : '');
+            } else {
+              setCwd('');
+            }
+          }
           playCmdChime(true);
         } else {
           const vfs = getFilesList();
@@ -887,6 +898,128 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
         setHistory([]);
         setInput('');
         return;
+
+      case 'echo':
+        newHistory.push({ text: args.join(' '), type: "text" });
+        playCmdChime(true);
+        break;
+
+      case 'whoami':
+        newHistory.push(
+          { text: "ghuroob (Arshad Pasha)", type: "text" },
+          { text: "Sunset OS [Ghuroob OS] v0.5", type: "text" },
+          { text: "LAZ Kernel — x86 Freestanding", type: "text" }
+        );
+        playCmdChime(true);
+        break;
+
+      case 'uptime': {
+        const uptimeMs = Math.round(performance.now());
+        const uptimeSecs = Math.floor(uptimeMs / 1000);
+        const h = Math.floor(uptimeSecs / 3600);
+        const m = Math.floor((uptimeSecs % 3600) / 60);
+        const s = uptimeSecs % 60;
+        newHistory.push({ text: `[Uptime] ${h}h ${m}m ${s}s (${uptimeMs}ms since page load)`, type: "text" });
+        playCmdChime(true);
+        break;
+      }
+
+      case 'stat': {
+        const vfsItems = getFilesList();
+        const usedSlots = vfsItems.length;
+        const folders = vfsItems.filter(i => i.type === 'folder').length;
+        const filesCount = vfsItems.filter(i => i.type !== 'folder').length;
+        newHistory.push(
+          { text: `[VFS] Total items: ${usedSlots}`, type: "text" },
+          { text: `[VFS] Directories: ${folders}`, type: "text" },
+          { text: `[VFS] Files: ${filesCount}`, type: "text" },
+          { text: `[VFS] Storage: LocalStorage (Browser)`, type: "text" }
+        );
+        playCmdChime(true);
+        break;
+      }
+
+      case 'tree': {
+        const allFiles = getFilesList();
+        const parentId = getParentIdForCwd(cwd);
+        const buildTree = (pid, depth) => {
+          const children = allFiles.filter(i => i.parent === pid);
+          children.forEach(child => {
+            const indent = '  '.repeat(depth);
+            if (child.type === 'folder') {
+              newHistory.push({ text: `${indent}[DIR] ${child.name}/`, type: "folder" });
+              buildTree(child.id, depth + 1);
+            } else {
+              newHistory.push({ text: `${indent}      ${child.name}`, type: "file" });
+            }
+          });
+        };
+        newHistory.push({ text: `/${cwd}`, type: "info" });
+        buildTree(parentId, 0);
+        playCmdChime(true);
+        break;
+      }
+
+      case 'rmdir': {
+        if (args.length === 0) {
+          newHistory.push({ text: "Usage: rmdir [directory_name]", type: "error" });
+          playCmdChime(false);
+        } else {
+          const vfs = getFilesList();
+          const dirName = args[0];
+          const parentId = getParentIdForCwd(cwd);
+          const target = vfs.find(i => i.name.toLowerCase() === dirName.toLowerCase() && i.type === 'folder' && i.parent === parentId);
+          if (target) {
+            // Recursively collect all child IDs
+            const collectChildIds = (pid) => {
+              const children = vfs.filter(i => i.parent === pid);
+              let ids = [pid];
+              children.forEach(c => {
+                if (c.type === 'folder') {
+                  ids = [...ids, ...collectChildIds(c.id)];
+                } else {
+                  ids.push(c.id);
+                }
+              });
+              return ids;
+            };
+            const idsToRemove = collectChildIds(target.id);
+            const updated = vfs.filter(i => !idsToRemove.includes(i.id));
+            localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
+            window.dispatchEvent(new Event('sunset_vfs_changed'));
+            newHistory.push({ text: `[OK] Directory removed: ${dirName}`, type: "success" });
+            playCmdChime(true);
+          } else {
+            newHistory.push({ text: `Error: Directory '${dirName}' not found.`, type: "error" });
+            playCmdChime(false);
+          }
+        }
+        break;
+      }
+
+      case 'mv': {
+        if (args.length < 2) {
+          newHistory.push({ text: "Usage: mv [old_name] [new_name]", type: "error" });
+          playCmdChime(false);
+        } else {
+          const vfs = getFilesList();
+          const oldName = args[0];
+          const newName = args[1];
+          const parentId = getParentIdForCwd(cwd);
+          const target = vfs.find(i => i.name.toLowerCase() === oldName.toLowerCase() && i.parent === parentId);
+          if (target) {
+            const updated = vfs.map(i => i.id === target.id ? { ...i, name: newName } : i);
+            localStorage.setItem('sunset_os_vfs', JSON.stringify(updated));
+            window.dispatchEvent(new Event('sunset_vfs_changed'));
+            newHistory.push({ text: `[OK] Renamed: ${oldName} -> ${newName}`, type: "success" });
+            playCmdChime(true);
+          } else {
+            newHistory.push({ text: `Error: '${oldName}' not found in /${cwd}.`, type: "error" });
+            playCmdChime(false);
+          }
+        }
+        break;
+      }
 
       default:
         newHistory.push({ text: `command not found: ${command}. Type 'help' to review active console tools.`, type: "error" });

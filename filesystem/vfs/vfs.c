@@ -71,6 +71,15 @@ void vfs_init(void) {
     vfs_mkdir("Music",     "");
     vfs_mkdir("Downloads", "");
     vfs_mkdir("Projects",  "");
+    vfs_mkdir("sunset-OS", "Projects");
+
+    vfs_write("readme.txt", "Projects/sunset-OS",
+        "Sunset OS Core v0.5 [Freestanding x86]\n"
+        "======================================\n"
+        "Now running on fully scaled V5 kernel.\n"
+        "Multi-terminal tab sessions active.\n"
+        "Asynchronous keyboard & mouse unmasked.\n"
+        "Enjoy your serene deep path workspace.");
 
     /* ── Root-level files ── */
     vfs_write("welcome.txt", "",
@@ -279,3 +288,109 @@ int vfs_find_prefix(const char* dir, const char* prefix,
     }
     return matches;
 }
+
+/* Build a full path from parent + name */
+static void build_full_path(char* out, const char* parent, const char* name) {
+    int pos = 0;
+    if (parent[0] != '\0') {
+        for (int i = 0; parent[i] && pos < MAX_PATH_LEN - 2; i++)
+            out[pos++] = parent[i];
+        out[pos++] = '/';
+    }
+    for (int i = 0; name[i] && pos < MAX_PATH_LEN - 1; i++)
+        out[pos++] = name[i];
+    out[pos] = '\0';
+}
+
+/* Remove a directory and all its contents recursively */
+int vfs_rmdir(const char* name, const char* parent_dir) {
+    /* Build full path of the directory being deleted */
+    char full_path[MAX_PATH_LEN];
+    build_full_path(full_path, parent_dir, name);
+    
+    /* First: recursively delete all children whose parent starts with full_path */
+    for (int i = 0; i < MAX_VFS_FILES; i++) {
+        if (!ramdisk[i].active) continue;
+        /* Check if this item's parent is exactly full_path or starts with full_path/ */
+        if (s_cmp(ramdisk[i].parent, full_path) == 0) {
+            ramdisk[i].active     = 0;
+            ramdisk[i].name[0]    = '\0';
+            ramdisk[i].parent[0]  = '\0';
+            ramdisk[i].content[0] = '\0';
+            ramdisk[i].size       = 0;
+        } else {
+            /* Check prefix match for deeper nesting */
+            int fp_len = s_len(full_path);
+            int ok = 1;
+            for (int j = 0; j < fp_len; j++) {
+                if (ramdisk[i].parent[j] != full_path[j]) { ok = 0; break; }
+            }
+            if (ok && ramdisk[i].parent[fp_len] == '/') {
+                ramdisk[i].active     = 0;
+                ramdisk[i].name[0]    = '\0';
+                ramdisk[i].parent[0]  = '\0';
+                ramdisk[i].content[0] = '\0';
+                ramdisk[i].size       = 0;
+            }
+        }
+    }
+    
+    /* Now delete the directory entry itself */
+    for (int i = 0; i < MAX_VFS_FILES; i++) {
+        if (!ramdisk[i].active) continue;
+        if (!ramdisk[i].is_dir) continue;
+        if (s_cmp(ramdisk[i].name, name) != 0) continue;
+        if (s_cmp(ramdisk[i].parent, parent_dir) != 0) continue;
+        ramdisk[i].active     = 0;
+        ramdisk[i].name[0]    = '\0';
+        ramdisk[i].parent[0]  = '\0';
+        ramdisk[i].content[0] = '\0';
+        ramdisk[i].size       = 0;
+        return 1;
+    }
+    return 0;
+}
+
+/* Recursive tree display */
+int vfs_tree(const char* dir, char* out, int max_len, int depth) {
+    int pos = s_len(out);
+    
+    for (int i = 0; i < MAX_VFS_FILES; i++) {
+        if (!ramdisk[i].active) continue;
+        if (s_cmp(ramdisk[i].parent, dir) != 0) continue;
+        
+        /* Indent */
+        for (int d = 0; d < depth && pos < max_len - 1; d++) {
+            pos = s_app(out, pos, max_len, "  ");
+        }
+        
+        if (ramdisk[i].is_dir) {
+            pos = s_app(out, pos, max_len, "[DIR] ");
+            pos = s_app(out, pos, max_len, ramdisk[i].name);
+            pos = s_app(out, pos, max_len, "/\n");
+            
+            /* Recurse into subdirectory */
+            char sub_path[MAX_PATH_LEN];
+            build_full_path(sub_path, dir, ramdisk[i].name);
+            vfs_tree(sub_path, out, max_len, depth + 1);
+            pos = s_len(out);
+        } else {
+            pos = s_app(out, pos, max_len, "      ");
+            pos = s_app(out, pos, max_len, ramdisk[i].name);
+            pos = s_app(out, pos, max_len, " (");
+            pos = s_app_int(out, pos, max_len, ramdisk[i].size);
+            pos = s_app(out, pos, max_len, " B)\n");
+        }
+    }
+    return 1;
+}
+
+/* Count used VFS slots */
+int vfs_count_used(void) {
+    int count = 0;
+    for (int i = 0; i < MAX_VFS_FILES; i++) {
+        if (ramdisk[i].active) count++;
+    }
+    return count;
+}
+

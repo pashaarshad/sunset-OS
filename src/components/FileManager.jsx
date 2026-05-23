@@ -37,7 +37,17 @@ export default function FileManager({ openTextEditor, openMediaSuite }) {
         { id: '10', name: 'calm_waves.mp4', type: 'video', parent: '4', content: 'Calming waves under a setting sun.' },
         
         { id: 'welcome_desk', name: 'welcome_sunset.txt', type: 'file', parent: 'desktop', content: 'Welcome to Sunset OS Desktop!\n\nThis is your tranquil workspace. Place files and folder short-cuts here.' },
-        { id: 'download_item', name: 'zen_wallpaper.png', type: 'image', parent: 'downloads', content: '/src/assets/sunset_bg.png' }
+        { id: 'download_item', name: 'zen_wallpaper.png', type: 'image', parent: 'downloads', content: '/src/assets/sunset_bg.png' },
+        
+        // Nested project tree
+        { id: 'proj_sunset', name: 'sunset-OS', type: 'folder', parent: 'projects' },
+        { id: 'proj_readme', name: 'readme.txt', type: 'file', parent: 'proj_sunset', content: 'Sunset OS (Ghuroob OS)\n\nA lightweight, nature-inspired operating system built from scratch.\n\nKernel: LAZ Kernel v0.5\nGraphics: Custom VGA 800x600\nShell: ghuroob@sunset' },
+        { id: 'proj_src', name: 'src', type: 'folder', parent: 'proj_sunset' },
+        { id: 'proj_kernel', name: 'kernel.c', type: 'file', parent: 'proj_src', content: '// Main kernel entry point\nvoid kernel_main() {\n    init_vga();\n    init_idt();\n    init_vfs();\n    // Enter main loop\n}' },
+        
+        // Nested documents tree
+        { id: 'doc_logs', name: 'Logs', type: 'folder', parent: '1' },
+        { id: 'doc_log_boot', name: 'boot_log.txt', type: 'file', parent: 'doc_logs', content: '[BOOT] VGA initialized at 800x600\n[BOOT] IDT loaded\n[BOOT] VFS mounted with 64 inodes\n[BOOT] Scheduler started\n[BOOT] Welcome to Sunset OS!' }
       ];
       setItems(defaultVFS);
       localStorage.setItem('sunset_os_vfs', JSON.stringify(defaultVFS));
@@ -312,13 +322,34 @@ export default function FileManager({ openTextEditor, openMediaSuite }) {
               </button>
             )}
             <div className="flex items-center gap-1 bg-black/30 border border-white/5 rounded-lg px-2 py-1 text-[10px] text-white/70">
-              <span className="opacity-40">./home/ghuroob</span>
-              {currentDir !== 'root' && (
-                <>
-                  <span className="opacity-30">/</span>
-                  <span className="text-orange-300 font-semibold">{items.find(item => item.id === currentDir)?.name}</span>
-                </>
-              )}
+              <span 
+                className="opacity-40 hover:opacity-80 cursor-pointer transition-opacity" 
+                onClick={() => setCurrentDir('root')}
+              >./home/ghuroob</span>
+              {(() => {
+                // Build full breadcrumb path by walking up parent chain
+                const pathParts = [];
+                let walkId = currentDir;
+                while (walkId && walkId !== 'root') {
+                  const node = items.find(i => i.id === walkId);
+                  if (!node) break;
+                  pathParts.unshift({ id: node.id, name: node.name });
+                  walkId = node.parent;
+                }
+                return pathParts.map((part, idx) => (
+                  <React.Fragment key={part.id}>
+                    <span className="opacity-30">/</span>
+                    <span 
+                      className={`cursor-pointer transition-colors ${
+                        idx === pathParts.length - 1 
+                          ? 'text-orange-300 font-semibold' 
+                          : 'text-white/50 hover:text-orange-200'
+                      }`}
+                      onClick={(e) => { e.stopPropagation(); setCurrentDir(part.id); }}
+                    >{part.name}</span>
+                  </React.Fragment>
+                ));
+              })()}
             </div>
           </div>
           

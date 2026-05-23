@@ -28,7 +28,8 @@ static const char scancode_to_ascii[] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
     '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
     0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0, '\\',
-    'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' '
+    'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' ',
+    0, 0xF1, 0xF2, 0xF3
 };
 
 // Shifted scancode map: Shift held — uppercase letters and symbol characters
@@ -36,19 +37,34 @@ static const char scancode_to_ascii_shifted[] = {
     0,  27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
     '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
     0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0, '|',
-    'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '*', 0, ' '
+    'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '*', 0, ' ',
+    0, 0xF1, 0xF2, 0xF3
 };
 
-// Global interactive shell buffer states
-static char shell_buffer[2048];
-static int shell_len = 0;
+typedef struct {
+    char _buf[2048];
+    int _len;
+    char _cwd[128];
+    char _hist[5][32];
+    int _hcount;
+    int _hnav;
+} terminal_session_t;
+
+static terminal_session_t terminals[3];
+volatile int active_terminal = 0;
+
+#define shell_buffer     (terminals[active_terminal]._buf)
+#define shell_len        (terminals[active_terminal]._len)
+#define cwd              (terminals[active_terminal]._cwd)
+#define cmd_history      (terminals[active_terminal]._hist)
+#define history_count    (terminals[active_terminal]._hcount)
+#define history_nav_idx  (terminals[active_terminal]._hnav)
 
 static char garden_buffer[512];
 static char notes_buffer[1024];
 static char calendar_buffer[512];
 static char show_garden = 0;
 static char show_cal = 1;
-static char cwd[32] = "";
 
 static void helper_strcpy(char* dest, const char* src) {
     int i = 0;
@@ -201,10 +217,7 @@ static void format_calendar_content(char* dest) {
 }
 
 
-// Context memory history buffer
-static char cmd_history[5][32];
-static int history_count = 0;
-static int history_nav_idx = 0; // Tracks current position for Up/Down arrow navigation
+// Context memory history buffer mapped via macros to terminal sessions
 
 // Keyboard modifier state flags
 static volatile char shift_pressed = 0;  // Left or Right Shift is held
@@ -271,7 +284,7 @@ void keyboard_handler() {
         if (scancode == 0x3A) { caps_lock = !caps_lock; return; }
 
         // ── Process make-codes (key-down, < 0x80)
-        if (scancode < 0x80 && scancode < 58) {
+        if (scancode < 0x80 && scancode < 62) {
             // Effective shift: Caps Lock inverts shift only for letter scancodes (0x10–0x32)
             char eff_shift = shift_pressed;
             if (caps_lock && scancode >= 0x10 && scancode <= 0x32) {
@@ -338,7 +351,7 @@ static int get_prompt_len() {
 
 static void append_prompt_to_shell() {
     append_to_shell("\n");
-    char prompt[64];
+    char prompt[192];
     build_prompt(prompt);
     append_to_shell(prompt);
 }
@@ -456,16 +469,38 @@ void sakura_anim_task() {
     }
 }
 
-static void clear_shell() {
-    memset(shell_buffer, 0, 2048);
-    memcpy(shell_buffer, "[SunsetSH] Serene Active Workspace.\n", 36);
-    shell_len = 36;
+static void clear_shell_for_tab(int tab) {
+    terminal_session_t* s = &terminals[tab];
+    memset(s->_buf, 0, 2048);
+    if (tab == 0) {
+        helper_strcpy(s->_buf, "[Terminal 1] Welcome to Sunset OS Shell v0.5.\nType 'help' to review active console tools.\n");
+        s->_len = 91;
+    } else if (tab == 1) {
+        helper_strcpy(s->_buf, "[Terminal 2] Diagnostics workspace. Monitor hardware ticks.\n");
+        s->_len = 60;
+    } else {
+        helper_strcpy(s->_buf, "[Terminal 3] Serene sandbox space.\n");
+        s->_len = 35;
+    }
+    s->_cwd[0] = '\0';
+    s->_hcount = 0;
+    s->_hnav = 0;
+    
     char prompt[64];
-    build_prompt(prompt);
+    helper_strcpy(prompt, "ghuroob@sunset:/$ ");
     int p_len = mystrlen(prompt);
-    memcpy(shell_buffer + shell_len, prompt, p_len);
-    shell_len += p_len;
-    shell_buffer[shell_len] = '\0';
+    helper_strcat(s->_buf, prompt);
+    s->_len += p_len;
+}
+
+static void init_terminals() {
+    for (int t = 0; t < 3; t++) {
+        clear_shell_for_tab(t);
+    }
+}
+
+static void clear_shell() {
+    clear_shell_for_tab(active_terminal);
 }
 
 static void append_to_shell(const char* str) {
@@ -622,7 +657,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
     vfs_read("notes.txt", "", notes_buffer, 1024);
     init_window(&win_notes, 440, 70, 320, 210, "Calm Notes", notes_buffer);
 
-    clear_shell();
+    init_terminals();
     init_window(&win_shell, 180, 300, 440, 220, "Sunset Shell Interface", shell_buffer);
     win_shell.active = 1; // Shell window active at boot
 
@@ -675,7 +710,15 @@ void kernel_main(unsigned int* vesa_framebuffer) {
             idle_timer = 0;
             is_ambient = 0;
 
-            if (show_garden && win_garden.active) {
+            // ── F1/F2/F3: Switch active terminal tab
+            if ((unsigned char)ascii == 0xF1 || (unsigned char)ascii == 0xF2 || (unsigned char)ascii == 0xF3) {
+                int new_tab = (unsigned char)ascii - 0xF1;
+                if (new_tab != active_terminal) {
+                    active_terminal = new_tab;
+                    win_shell.content = shell_buffer;
+                    play_tone(1200); sleep_ms(30); stop_tone();
+                }
+            } else if (show_garden && win_garden.active) {
                 if (ascii == 27 || ascii == 'q' || ascii == 'Q') {
                     show_garden = 0;
                     win_garden.active = 0;
@@ -794,7 +837,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 if (cmd_idx == 0) {
                     append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "help") == 0) {
-                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3],\n          ls, cd [dir], cd .., mkdir [dir],\n          pwd, cat [file], touch [file],\n          write [file] [txt], rm [file],\n          time, cal");
+                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3],\n          ls, cd [dir], cd .., mkdir [dir],\n          pwd, cat [file], touch [file],\n          write [file] [txt], rm [file],\n          mv [old] [new], echo [text],\n          rmdir [dir], tree, stat, whoami,\n          uptime, time, cal");
                     append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "ls") == 0) {
                     char file_list[512];
@@ -907,6 +950,77 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         append_to_shell("\nUsage: mkdir [directory_name]\n");
                     }
                     append_prompt_to_shell();
+                } else if (sh_strncmp(cmd, "echo ", 5) == 0) {
+                    const char* msg = cmd + 5;
+                    append_to_shell("\n");
+                    append_to_shell(msg);
+                    append_to_shell("\n");
+                    append_prompt_to_shell();
+                } else if (sh_strncmp(cmd, "mv ", 3) == 0) {
+                    // mv oldname newname — rename a file in cwd
+                    const char* args = cmd + 3;
+                    while (*args == ' ') args++;
+                    char old_name[32];
+                    int oi = 0;
+                    while (*args != '\0' && *args != ' ' && oi < 31) {
+                        old_name[oi++] = *args++;
+                    }
+                    old_name[oi] = '\0';
+                    while (*args == ' ') args++;
+                    char new_name[32];
+                    int ni = 0;
+                    while (*args != '\0' && *args != ' ' && ni < 31) {
+                        new_name[ni++] = *args++;
+                    }
+                    new_name[ni] = '\0';
+                    
+                    if (old_name[0] && new_name[0]) {
+                        // Find and rename the file
+                        int found = 0;
+                        for (int ri = 0; ri < MAX_VFS_FILES; ri++) {
+                            extern vfs_file_t ramdisk[];
+                            if (ramdisk[ri].active && 
+                                sh_strcmp(ramdisk[ri].name, old_name) == 0 &&
+                                sh_strcmp(ramdisk[ri].parent, cwd) == 0) {
+                                helper_strcpy(ramdisk[ri].name, new_name);
+                                found = 1;
+                                break;
+                            }
+                        }
+                        if (found) {
+                            append_to_shell("\n[OK] Renamed: ");
+                            append_to_shell(old_name);
+                            append_to_shell(" -> ");
+                            append_to_shell(new_name);
+                        } else {
+                            append_to_shell("\n[Error] File not found: ");
+                            append_to_shell(old_name);
+                        }
+                    } else {
+                        append_to_shell("\nUsage: mv [old_name] [new_name]");
+                    }
+                    append_to_shell("\n");
+                    append_prompt_to_shell();
+                } else if (sh_strcmp(cmd, "uptime") == 0) {
+                    extern volatile unsigned int system_ticks;
+                    char nbuf[16];
+                    unsigned int secs = system_ticks / 100;
+                    unsigned int mins = secs / 60;
+                    unsigned int hrs = mins / 60;
+                    append_to_shell("\n[Uptime] ");
+                    uint_to_str(hrs, nbuf);
+                    append_to_shell(nbuf);
+                    append_to_shell("h ");
+                    uint_to_str(mins % 60, nbuf);
+                    append_to_shell(nbuf);
+                    append_to_shell("m ");
+                    uint_to_str(secs % 60, nbuf);
+                    append_to_shell(nbuf);
+                    append_to_shell("s (");
+                    uint_to_str(system_ticks, nbuf);
+                    append_to_shell(nbuf);
+                    append_to_shell(" ticks)\n");
+                    append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "cd ", 3) == 0 || sh_strcmp(cmd, "cd") == 0) {
                     const char* dirname = "";
                     if (sh_strncmp(cmd, "cd ", 3) == 0) {
@@ -918,11 +1032,68 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         cwd[0] = '\0';
                         append_prompt_to_shell();
                     } else if (sh_strcmp(dirname, "..") == 0) {
-                        cwd[0] = '\0'; // flat parent back-to-root
+                        // Truncate last path component from cwd
+                        int len = mystrlen(cwd);
+                        if (len == 0) {
+                            // Already at root, do nothing
+                        } else {
+                            // Find last '/' separator
+                            int last_slash = -1;
+                            for (int k = len - 1; k >= 0; k--) {
+                                if (cwd[k] == '/') { last_slash = k; break; }
+                            }
+                            if (last_slash >= 0) {
+                                cwd[last_slash] = '\0';
+                            } else {
+                                cwd[0] = '\0'; // Back to root
+                            }
+                        }
                         append_prompt_to_shell();
                     } else {
-                        if (vfs_dir_exists(dirname, cwd)) {
-                            helper_strcpy(cwd, dirname);
+                        // Attempt to navigate into dirname (supports single or multi-component paths)
+                        // Build target path by appending dirname to cwd
+                        char target_cwd[128];
+                        if (dirname[0] == '/') {
+                            // Absolute path: strip leading slash
+                            dirname++;
+                            helper_strcpy(target_cwd, dirname);
+                        } else if (cwd[0] == '\0') {
+                            helper_strcpy(target_cwd, dirname);
+                        } else {
+                            helper_strcpy(target_cwd, cwd);
+                            helper_strcat(target_cwd, "/");
+                            helper_strcat(target_cwd, dirname);
+                        }
+                        
+                        // Walk down path components to verify each directory exists
+                        char walk_path[128];
+                        walk_path[0] = '\0';
+                        char component[32];
+                        int valid = 1;
+                        int ti = 0;
+                        
+                        while (target_cwd[ti] != '\0' && valid) {
+                            int ci = 0;
+                            while (target_cwd[ti] != '\0' && target_cwd[ti] != '/' && ci < 31) {
+                                component[ci++] = target_cwd[ti++];
+                            }
+                            component[ci] = '\0';
+                            if (target_cwd[ti] == '/') ti++;
+                            
+                            if (ci > 0) {
+                                if (!vfs_dir_exists(component, walk_path)) {
+                                    valid = 0;
+                                } else {
+                                    if (walk_path[0] != '\0') {
+                                        helper_strcat(walk_path, "/");
+                                    }
+                                    helper_strcat(walk_path, component);
+                                }
+                            }
+                        }
+                        
+                        if (valid) {
+                            helper_strcpy(cwd, walk_path);
                             append_prompt_to_shell();
                         } else {
                             append_to_shell("\n[Error] Directory not found: ");
@@ -1134,6 +1305,55 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     win_shell.active = 0;
                     win_garden.active = 1;
                     draw_garden_content(garden_buffer);
+                    append_prompt_to_shell();
+                } else if (sh_strcmp(cmd, "tree") == 0) {
+                    char tree_buf[1024];
+                    tree_buf[0] = '\0';
+                    append_to_shell("\n/");
+                    if (cwd[0] != '\0') {
+                        append_to_shell(cwd);
+                    }
+                    append_to_shell("\n");
+                    vfs_tree(cwd, tree_buf, 1024, 0);
+                    append_to_shell(tree_buf);
+                    append_prompt_to_shell();
+                } else if (sh_strncmp(cmd, "rmdir ", 6) == 0) {
+                    const char* dirname = cmd + 6;
+                    while (*dirname == ' ') dirname++;
+                    if (dirname[0] != '\0') {
+                        if (vfs_dir_exists(dirname, cwd)) {
+                            vfs_rmdir(dirname, cwd);
+                            append_to_shell("\n[OK] Directory removed: ");
+                            append_to_shell(dirname);
+                            append_to_shell("\n");
+                        } else {
+                            append_to_shell("\n[Error] Directory not found: ");
+                            append_to_shell(dirname);
+                            append_to_shell("\n");
+                        }
+                    } else {
+                        append_to_shell("\nUsage: rmdir [directory_name]\n");
+                    }
+                    append_prompt_to_shell();
+                } else if (sh_strcmp(cmd, "stat") == 0) {
+                    int used = vfs_count_used();
+                    char nbuf[16];
+                    uint_to_str(used, nbuf);
+                    append_to_shell("\n[VFS] Inodes used: ");
+                    append_to_shell(nbuf);
+                    append_to_shell("/64");
+                    uint_to_str(64 - used, nbuf);
+                    append_to_shell("\n[VFS] Inodes free: ");
+                    append_to_shell(nbuf);
+                    append_to_shell("\n[VFS] Max file size: 1024 B");
+                    append_to_shell("\n[VFS] Path depth: unlimited");
+                    append_to_shell("\n");
+                    append_prompt_to_shell();
+                } else if (sh_strcmp(cmd, "whoami") == 0) {
+                    append_to_shell("\nghuroob (Arshad Pasha)");
+                    append_to_shell("\nSunset OS [Ghuroob OS] v0.5");
+                    append_to_shell("\nLAZ Kernel — x86 Freestanding");
+                    append_to_shell("\n");
                     append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "panic") == 0) {
                     kpanic("USER TRIGGERED CORE EXCEPTION PANIC");
@@ -1366,6 +1586,28 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 mouse_was_released = 1;
             }
             if (mouse_left_clicked && mouse_was_released) {
+                // G. Terminal Tab Click Handler — intercept clicks in Shell tab bar
+                if (win_shell.active) {
+                    int tab_y_top = win_shell.y + 26;
+                    int tab_y_bot = win_shell.y + 40;
+                    if (mouse_y >= tab_y_top && mouse_y <= tab_y_bot) {
+                        int tab_w = 90;
+                        int tab_gap = 4;
+                        int tab_start_x = win_shell.x + 8;
+                        for (int t = 0; t < 3; t++) {
+                            int tx = tab_start_x + t * (tab_w + tab_gap);
+                            if (mouse_x >= tx && mouse_x <= tx + tab_w) {
+                                if (t != active_terminal) {
+                                    active_terminal = t;
+                                    win_shell.content = shell_buffer;
+                                    play_tone(1200); sleep_ms(30); stop_tone();
+                                }
+                                mouse_was_released = 0;
+                                break;
+                            }
+                        }
+                    }
+                }
                 if (mouse_y >= 545 && mouse_y <= 589) {
                     if (mouse_x >= 180 && mouse_x <= 204) {
                         play_startup_chime();

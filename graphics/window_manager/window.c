@@ -2,11 +2,24 @@
  * 🌅 Sunset OS — LAZ Kernel Window Manager
  * File: window.c
  * Description: Overlapping draggable windows and layouts.
+ *              Now supports multi-terminal tab rendering for Shell.
  * ===================================================================== */
 
 #include "window.h"
 #include "graphics.h"
 #include "font.h"
+
+extern volatile int active_terminal;
+
+/* Simple freestanding string comparison helper */
+static int win_strcmp(const char* a, const char* b) {
+    int i = 0;
+    while (a[i] && b[i]) {
+        if (a[i] != b[i]) return a[i] - b[i];
+        i++;
+    }
+    return a[i] - b[i];
+}
 
 void init_window(Window* win, int x, int y, int w, int h, const char* title, const char* content) {
     win->x = x;
@@ -22,6 +35,9 @@ void init_window(Window* win, int x, int y, int w, int h, const char* title, con
 }
 
 void draw_window(Window* win) {
+    int is_shell = (win_strcmp(win->title, "Sunset Shell Interface") == 0);
+    int tab_bar_h = is_shell ? 20 : 0;
+
     // 1. Draw elegant outer glassmorphic border frame (Solid Sunset White)
     draw_rect(win->x, win->y, win->w, win->h, 255, 255, 255);
     
@@ -45,15 +61,42 @@ void draw_window(Window* win) {
     draw_rect(win->x + win->w - 18, win->y + 6, 8, 8, 220, 40, 40);
     // Orange collapse circle
     draw_rect(win->x + win->w - 30, win->y + 6, 8, 8, 230, 140, 30);
-    
-    // 6. Draw internal dark terminal console window body
-    draw_rect(win->x + 6, win->y + 26, win->w - 12, win->h - 32, 18, 18, 20);
+
+    // 6. For Shell window: render three terminal tab buttons below the title bar
+    if (is_shell) {
+        // Tab bar background strip
+        draw_rect(win->x + 6, win->y + 24, win->w - 12, 18, 28, 28, 32);
+
+        const char* tab_labels[] = { " Terminal 1 ", " Terminal 2 ", " Terminal 3 " };
+        int tab_w = 90;
+        int tab_gap = 4;
+        int tab_start_x = win->x + 8;
+        int tab_y = win->y + 26;
+
+        for (int t = 0; t < 3; t++) {
+            int tx = tab_start_x + t * (tab_w + tab_gap);
+            if (t == active_terminal) {
+                // Active tab: Sunset Orange
+                draw_rect(tx, tab_y, tab_w, 14, 227, 133, 53);
+                draw_string(tab_labels[t], tx + 6, tab_y + 3, 255, 255, 255);
+            } else {
+                // Inactive tab: Dark Charcoal
+                draw_rect(tx, tab_y, tab_w, 14, 40, 40, 45);
+                draw_string(tab_labels[t], tx + 6, tab_y + 3, 140, 140, 150);
+            }
+        }
+    }
+
+    // 7. Draw internal dark terminal console window body
+    int body_top = win->y + 26 + tab_bar_h;
+    int body_h = win->h - 32 - tab_bar_h;
+    draw_rect(win->x + 6, body_top, win->w - 12, body_h, 18, 18, 20);
     
     // Draw double thin border lines around the inner terminal box
-    draw_rect_outline(win->x + 5, win->y + 25, win->w - 10, win->h - 30, 210, 195, 185);
+    draw_rect_outline(win->x + 5, body_top - 1, win->w - 10, body_h + 2, 210, 195, 185);
     
-    // 7. Write standard green/gold diagnostic console logs inside the window
-    draw_string(win->content, win->x + 12, win->y + 32, 40, 220, 120);
+    // 8. Write standard green/gold diagnostic console logs inside the window
+    draw_string(win->content, win->x + 12, body_top + 6, 40, 220, 120);
 }
 
 void handle_window_dragging(Window* win, int mx, int my, char mouse_down) {

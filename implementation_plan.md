@@ -1,169 +1,148 @@
-# Sunset OS — Implementation Plan: Milestone 9 (Emoji Logo & Virtual File System RAM Disk)
+# Sunset OS — Implementation Plan: Enterprise OS Scaling (Phase 5)
 
-![Sunset OS Milestone 9 Premium Emoji Logo Preview](C:/Users/Admin/.gemini/antigravity-ide/brain/fe476dfd-10aa-4dc5-b35e-c0816248fd92/sunset_os_m9_preview_1779355815268.png)
-
-We will implement **Milestone 9 (High-fidelity Emoji Logo & VFS RAM Disk)** for **Sunset OS (Ghuroob OS)**. This phase focuses on resolving the out-of-bounds glyph rendering bug that draws `????` for the sunset emoji (`🌅`), replacing it with a custom 16x16 pixel-art setting sun logo, and implementing an in-memory Virtual File System (VFS) RAM disk with shell commands and dynamic Calm Notes integration.
+We are ready to implement **Phase 5 — Enterprise OS Scaling** for **Sunset OS (Ghuroob OS)**. This phase focuses on scaling both our C-kernel and React-based simulator to a premium, enterprise-grade state. We will implement fully nested directory trees, absolute/relative directory traversals (`cd Documents/Projects`, `cd ..` recursively), multiple concurrent independent terminal tab sessions in the low-level x86 C kernel, and expanded VFS allocation slot capacities.
 
 ---
 
 ## User Review Required
 
-Please review the proposed architectural and low-level designs for Milestone 9:
+Please review the proposed design features for Phase 5:
 > [!IMPORTANT]
-> - **UTF-8 Emoji Interception**: The standard 8x8 font system converts characters outside 32-127 into `?`. We will detect the four-byte UTF-8 sequence for `🌅` (`0xF0 0x9F 0x8C 0x85`) inside `draw_string` and draw a custom, high-fidelity 16x16 pixel-art sunset logo, slightly raised to align with the text baseline.
-> - **In-Memory RAM Disk (VFS)**: We will create a light Virtual File System (VFS) using an active file slot array structure inside high-memory workspace, supporting creating, listing, reading, writing, and deleting files.
-> - **Shell Command Extraction Fix**: The existing terminal extracts commands starting from index 32, which breaks scrollback and multi-command history because the prompt keeps appending. We will fix this by searching backwards to extract the command relative to the *last* active prompt in the buffer.
-> - **Calm Notes & VFS Binding**: Instead of utilizing an isolated global char buffer, the "Calm Notes" window will read directly from a VFS file (`notes.txt`). The shell command `note [msg]` will dynamically append to `notes.txt` in the VFS, automatically updating the GUI window in real time!
+> - **Fully Nested Directory Traversal**: The current C-kernel VFS tracks only 1-level deep parent directories (flat parents) and overrides `cwd` to a single name. We will scale this by expanding `cwd` into a full 128-byte absolute path buffer (e.g. `Documents/Projects/sunset-OS`) and implementing step-by-step path tokenizing inside the `cd`, `ls`, `mkdir`, and file creation handlers.
+> - **Multi-Terminal Tab sessions in C Kernel**: We will create a `terminal_session_t` structure tracking active shell buffers, lengths, prompt paths, and histories for three separate shells. The user will be able to switch between these three active shells using **F1, F2, F3 hotkeys** or by **clicking the custom tab buttons** drawn at the top of the console window with the interrupt-driven mouse!
+> - **VFS Expansion**: We will scale `MAX_VFS_FILES` from 16 to 64 slots, ensuring heap space and static allocations can easily hold expanded file nodes.
+> - **Calm Breadcrumbs in React Explorer**: We will overhaul the React simulator's `FileManager.jsx` to render fully clickable breadcrumb path headers (`Home > Documents > Projects`) and recursively handle folder deletions/creations at any nested depth.
 
 ---
 
 ## Proposed Changes
 
-We will group our proposed changes by the VFS core and the graphics rasterizer.
+We will restructure our VFS, Window Manager, and Shell Coordinator as follows:
 
 ```mermaid
 graph TD
-    subgraph UI Rasterizer
-        A[draw_string] -->|Scan bytes| B{Is UTF-8 0xF0 9F 8C 85 ?}
-        B -->|Yes| C[draw_sunset_logo 16x16]
-        B -->|No| D[draw_char 8x8]
+    subgraph Multi-Terminal Sessions
+        A[F1 / F2 / F3 Key or Mouse Click] -->|Switch Active Terminal| B[active_terminal = 0, 1, or 2]
+        B -->|Updates Shell Buffer Pointer| C[win_shell.content = terminals[active_terminal].shell_buffer]
+        B -->|Plays serening tab click tick| D[Speaker Tone]
     end
-    subgraph Virtual File System RAM Disk
-        E[ls command] -->|vfs_list| F[ramdisk Array]
-        G[cat command] -->|vfs_read| F
-        H[write command] -->|vfs_write| F
-        I[rm command] -->|vfs_delete| F
-    end
-    subgraph Calm Notes Integration
-        J[note msg] -->|Append| K[notes.txt in VFS]
-        K -->|Reads from| L[Calm Notes GUI Window]
+
+    subgraph Deep Path VFS Traversal
+        E[cd Projects/sunset-OS] -->|Tokenize path components| F{Directory Exists?}
+        F -->|Yes| G[Append to absolute cwd: Documents/Projects/sunset-OS]
+        F -->|No| H[Print Error]
+        I[cd ..] -->|Truncate last component| J[cwd: Documents/Projects]
     end
 ```
 
 ---
 
-### Component 1: Custom Pixel-Art Sunset Emoji Rendering
-
-We will implement the pixel-art logo rendering and string matching inside the graphics module.
-
-#### [MODIFY] [font.c](file:///d:/sunset-OS/kernel/graphics/font.c)
-* Implement `draw_sunset_logo(int x, int y)`:
-  - Draws a gorgeous 16x16 custom pixel-art sunset card.
-  - The sky background remains transparent to blend perfectly with title bars and gradient backdrops.
-  - The setting sun is a half-circle dome colored with a brilliant light-yellow core (`255, 240, 150`) and golden-orange mantle (`253, 150, 30`).
-  - The sea body below has light gold/orange wave reflections in the center and deep purple-blue wave highlights.
-* Update `draw_string` to intercept UTF-8 bytes:
-  - Cast `str[i]` to `unsigned char` to prevent signed comparison conflicts.
-  - Check if `c == 0xF0 && (unsigned char)str[i+1] == 0x9F && (unsigned char)str[i+2] == 0x8C && (unsigned char)str[i+3] == 0x85`.
-  - If matched, invoke `draw_sunset_logo(curr_x, curr_y - 4)` (raised 4px to align vertically with the 8x8 font), advance `curr_x += 16` (logo width), and skip the remainder of the UTF-8 sequence using `i += 3`.
-
----
-
-### Component 2: Virtual File System (VFS) and RAM Disk
-
-We will implement a lightweight, static RAM disk under the core kernel workspace.
-
-#### [NEW] [vfs.h](file:///d:/sunset-OS/kernel/core/vfs.h)
-* Define file structure and API function signatures:
-```c
-#ifndef VFS_H
-#define VFS_H
-
-#define MAX_VFS_FILES 8
-#define MAX_FILE_NAME 32
-#define MAX_FILE_SIZE 512
-
-typedef struct {
-    char name[MAX_FILE_NAME];
-    char content[MAX_FILE_SIZE];
-    int size;
-    char active;
-} vfs_file_t;
-
-extern vfs_file_t ramdisk[MAX_VFS_FILES];
-
-void vfs_init();
-int vfs_list(char* out, int max_len);
-int vfs_read(const char* name, char* out, int max_len);
-int vfs_write(const char* name, const char* content);
-int vfs_delete(const char* name);
-
-#endif
-```
-
-#### [NEW] [vfs.c](file:///d:/sunset-OS/kernel/core/vfs.c)
-* Implement RAM disk memory allocation:
-  - Create the `ramdisk` global array.
-  - Implement static helper string handlers (`strcmp`, `strcpy`, `strlen`) to maintain freestanding safety.
-  - Implement `vfs_init()` which pre-allocates default files:
-    - `welcome.txt` (Tranquil welcome banner text).
-    - `philosophy.txt` (Sunset OS naming philosophy text).
-    - `todo.txt` (Calming mindfulness checklist).
-  - Implement `vfs_list()`, formatting files as a readable list (e.g. `- welcome.txt (112 bytes)\n`).
-  - Implement `vfs_read()`, `vfs_write()`, and `vfs_delete()`.
-
----
-
-### Component 3: Shell and GUI Window Integrations
-
-We will update the shell parser and GUI variables inside the main coordinator.
+### Component 1: Multi-Terminal State Structures & Kernel Shell
 
 #### [MODIFY] [kernel.c](file:///d:/sunset-OS/kernel/core/kernel.c)
-* Include `#include "vfs.h"` at the top of the file.
-* Initialize the VFS by calling `vfs_init();` immediately after graphics drivers inside `kernel_main`.
-* Bind the "Calm Notes" window to `notes.txt` in the VFS:
-  - In `kernel_main`, create and write initial calming content to `notes.txt` in VFS.
-  - Initialize the window with content pointed directly to the VFS content buffer: `init_window(&win_notes, 440, 70, 320, 210, "Calm Notes", ramdisk[notes_slot].content)`.
-* Fix command extraction from `shell_buffer`:
-  - Replace index-32 hardcoded extraction.
-  - Scan backwards to find the last occurrence of `"sunset-OS:~$ "` in `shell_buffer`.
-  - Extract the command starting immediately after that prompt index, cleanly supporting multi-command shell execution without conflict or `clear` dependency.
-* Add shell commands:
-  - `ls`: List files in the RAM disk.
-  - `cat [filename]`: Print file content.
-  - `touch [filename]`: Create an empty file.
-  - `write [filename] [content]`: Overwrite/create a file with the written string.
-  - `rm [filename]`: Delete a file.
-* Update `note [msg]` command:
-  - Read existing contents of `notes.txt` from the VFS.
-  - Append the new note drift string.
-  - Write it back using `vfs_write("notes.txt", ...)`, which automatically triggers in-memory buffer sync and GUI redraws instantly!
+* Define the `terminal_session_t` structure:
+  ```c
+  typedef struct {
+      char shell_buffer[2048];
+      int shell_len;
+      char cwd[128];
+      char cmd_history[5][32];
+      int history_count;
+      int history_nav_idx;
+  } terminal_session_t;
+  ```
+* Allocate three static terminal slots:
+  ```c
+  static terminal_session_t terminals[3];
+  volatile int active_terminal = 0;
+  ```
+* In `kernel_main`, initialize each session's buffers with distinct serene welcome banners:
+  - Terminal 1: `"[Terminal 1] Welcome to Sunset OS Shell v0.5.\nType 'help' to review active console tools."`
+  - Terminal 2: `"[Terminal 2] Diagnostics workspace. Monitor hardware ticks."`
+  - Terminal 3: `"[Terminal 3] Serene sandbox space."`
+* Update key handlers inside the main coordination loop to switch sessions:
+  - Intercept scancodes `0x3B` (F1), `0x3C` (F2), and `0x3D` (F3).
+  - Switch `active_terminal` to 0, 1, or 2.
+  - Update `win_shell.content` to point to the active terminal's `shell_buffer`.
+  - Play a quick high-frequency confirmation tone (`1200Hz` for `30ms`) to signal tab shifts.
+* Overhaul shell commands to pull from and write to the active terminal's struct instead of globals (e.g. `terminals[active_terminal].shell_buffer`, `terminals[active_terminal].cwd`).
+* Implement nested path traversing inside the `cd` command:
+  - Handle `cd ..` by locating the last `'/'` character in `cwd` and truncating there.
+  - Handle relative components (e.g. `cd Projects/sunset-OS`) by walking down intermediate subdirectories, verifying existence with `vfs_dir_exists`, and updating `cwd` dynamically with proper slash separators.
+  - Handle absolute paths starting with `'/'`.
 
 ---
 
-### Component 4: Build System Toolchain Integration
+### Component 2: Tab Renderers and Mouse Click Collisions
 
-We will register the new C module inside the PowerShell automation script.
+#### [MODIFY] [window.c](file:///d:/sunset-OS/graphics/window_manager/window.c)
+* Declare `extern volatile int active_terminal;` at the top of the file.
+* Inside `draw_window()`, check if the window title matches `"Sunset Shell Interface"`.
+* If it matches:
+  - Reduce the usable height of the main text area by 20 pixels to reserve a tab bar.
+  - Render three horizontal tab buttons at `win->y + 26`:
+    - Tab 1: `win->x + 8` to `win->x + 98` (width 90, height 16)
+    - Tab 2: `win->x + 102` to `win->x + 192` (width 90, height 16)
+    - Tab 3: `win->x + 196` to `win->x + 286` (width 90, height 16)
+  - Color the active tab in **Sunset Orange (227, 133, 53)** with bold white text.
+  - Color inactive tabs in **Charcoal Gray (40, 40, 45)** with muted white text.
+  - Offset the inner text output of `draw_string` down to `win->y + 48` (instead of `win->y + 32`) so console logs sit cleanly below the tab bar.
 
-#### [MODIFY] [build.ps1](file:///d:/sunset-OS/tools/build.ps1)
-* Add `vfs` into the modules mapping:
-```powershell
-    'vfs'       = 'kernel/core/vfs.c'
-```
-* Append `vfs` inside the compilation and link sequencing array:
-```powershell
-$moduleOrder = @('memory', 'graphics', 'font', 'vfs', 'window', 'garden', 'mouse', 'sound', 'net', 'idt', 'scheduler', 'kernel')
-```
+#### [MODIFY] [kernel.c](file:///d:/sunset-OS/kernel/core/kernel.c)
+* Expand the Dock Mouse Click Handler block to monitor tab button coordinates inside `win_shell` when the shell window is active:
+  - If mouse is clicked at `my >= win_shell.y + 26 && my <= win_shell.y + 42`:
+    - If `mx >= win_shell.x + 8 && mx <= win_shell.x + 98`: Switch to Terminal 1.
+    - If `mx >= win_shell.x + 102 && mx <= win_shell.x + 192`: Switch to Terminal 2.
+    - If `mx >= win_shell.x + 196 && mx <= win_shell.x + 286`: Switch to Terminal 3.
+  - Play tab-change chime and update the active window pointers instantly!
+
+---
+
+### Component 3: Scaled VFS RAM Disk Configuration
+
+#### [MODIFY] [vfs.h](file:///d:/sunset-OS/filesystem/vfs/vfs.h)
+* Scale slots bounds:
+  - `#define MAX_VFS_FILES  64`
+  - `#define MAX_FILE_SIZE  1024` (increased to support longer documents)
+
+#### [MODIFY] [vfs.c](file:///d:/sunset-OS/filesystem/vfs/vfs.c)
+* Update structures memory footprint to match the expanded bounds.
+* Scale VFS listing filters:
+  - In `vfs_list()`, match child entries by checking if their parent paths match the `cwd` absolute path string exactly.
+  - Format nested directories listing with beautiful slash indicators and folder sizes.
+
+---
+
+### Component 4: Clickable Breadcrumbs and Deep Tree React Simulator
+
+#### [MODIFY] [FileManager.jsx](file:///d:/sunset-OS/src/components/FileManager.jsx)
+* Add absolute path state management:
+  - Render an interactive, styled breadcrumb navigation header (e.g. `Home` > `Documents` > `Projects` > `sunset-OS`).
+  - Make each breadcrumb node fully clickable so users can jump straight back to any parent folder path level instantly.
+  - Support creating folders and files at any arbitrary nested depth by passing down dynamic parent ID pointers.
+* Expand directory deletion logic to recursively clean all children, subdirectories, and nested documents recursively from local storage VFS state.
+
+#### [MODIFY] [Terminal.jsx](file:///d:/sunset-OS/src/components/Terminal.jsx)
+* Scale terminal command actions (`cd`, `mkdir`, `cat`, `touch`, `write`, `rm`) to fully utilize and maintain absolute nested paths inside the localStorage VFS.
+* Resolve dynamic tab selections so that Terminal 1, Terminal 2, and Terminal 3 preserve their respective active prompt paths (`cwd`), histories, and text layouts independently in reactive local states!
 
 ---
 
 ## Verification Plan
 
-### Automated / Compiler Tests
-1. **Compilation Check**: Run `powershell.exe -ExecutionPolicy Bypass -File tools/build.ps1` to ensure NASM, GCC, and LD link `vfs.o` and compile successfully.
+### Automated Tests
+1. **Toolchain Compilation**: Run `powershell.exe -ExecutionPolicy Bypass -File tools/build.ps1 -no-qemu` to verify that NASM assembly, GCC compiler, and LD linking execute with **zero errors**.
+2. **React Build Integrity**: Compile the React front-end app to verify that Vite bundles all JSX dependencies flawlessly.
 
-### Manual / Visual Verification inside QEMU
-1. **Sunset Logo Verification**:
-   - Verify the boot card loads the gorgeous pixel-art Sun and ocean reflections without any question marks.
-   - Verify the taskbar at the bottom left renders `🌅 Sunset OS v0.4` correctly and cleanly aligned.
-2. **Multi-Command Execution Validation**:
-   - Type multiple sequential commands: `help`, `chime`, `lofi 1` without typing `clear` and verify they all execute properly (proving prompt extraction fix works).
-3. **VFS File Shell Command Validation**:
-   - Type `ls` to verify the pre-allocated files list shows up.
-   - Type `cat welcome.txt` to print the greeting message.
-   - Type `touch deep.txt` and verify `ls` lists `deep.txt (0 bytes)`.
-   - Type `write deep.txt Take a deep breath.` and verify `cat deep.txt` shows the text.
-   - Type `rm deep.txt` and verify it is removed from `ls`.
-4. **Calm Notes Live Sync**:
-   - Type `note Relax your shoulders.` in the terminal.
-   - Verify that the Calm Notes GUI window instantly displays the appended note!
+### Manual Verification
+1. **C-Kernel Tab-Switching Test**:
+   - Click on the Terminal 2 tab or press `F2` in QEMU. Verify that Terminal 2 opens, showing its distinct diagnostics welcome message and a separate prompt.
+   - Run a command in Terminal 2 (e.g., `lofi 2`), then press `F1` to return to Terminal 1. Verify Terminal 1's history and active command prompt are fully preserved!
+2. **Low-level Nested Directory Walking**:
+   - Inside the shell, type: `mkdir Documents/Projects` and then `cd Documents/Projects`.
+   - Type `pwd` and verify it outputs `/Documents/Projects`.
+   - Type `touch app.c` and `write app.c "int main() {}"` in this nested folder.
+   - Type `cd ..` and verify it returns to `/Documents`. Type `ls` to verify only the `Projects` subdirectory is listed inside `Documents` (preserving hierarchical encapsulation).
+3. **React FileManager Breadcrumbs**:
+   - Double-click the `Documents` folder, then double-click `Projects`.
+   - Verify that the breadcrumb shows `Home > Documents > Projects` and clicking `Documents` jumps directly back.
