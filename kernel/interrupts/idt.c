@@ -41,10 +41,11 @@ static void pic_remap() {
     outb(0x21, 0x01);
     outb(0xA1, 0x01);
 
-    // Set OCW1 (Mask registers): Only enable IRQ0 (Timer, bit 0) and IRQ1 (Keyboard, bit 1)
-    // Master PIC: 0xFC (11111100b), Slave PIC: 0xFF (11111111b)
-    outb(0x21, 0xFC);
-    outb(0xA1, 0xFF);
+    // Set OCW1 (Mask registers): Only enable IRQ0 (Timer, bit 0), IRQ1 (Keyboard, bit 1),
+    // and Cascade IRQ2 (bit 2) on Master PIC. Enable IRQ12 (Mouse, bit 4) on Slave PIC.
+    // Master PIC: 0xF8 (11111000b), Slave PIC: 0xEF (11101111b)
+    outb(0x21, 0xF8);
+    outb(0xA1, 0xEF);
 }
 
 // Assembly stubs defined in interrupt.asm
@@ -63,6 +64,7 @@ extern void isr28(); extern void isr29(); extern void isr30(); extern void isr31
 // Hardware IRQ stubs
 extern void irq0();  // PIT Timer
 extern void irq1();  // Keyboard
+extern void irq12(); // PS/2 Mouse
 
 // Array of CPU exception diagnostic messages
 static const char* exception_messages[] = {
@@ -147,6 +149,7 @@ void init_idt() {
     // 4. Register hardware interrupt request handler lines
     set_idt_gate(32, (unsigned int)irq0);    // Timer ticks (IRQ0)
     set_idt_gate(33, (unsigned int)irq1);    // Keyboard strokes (IRQ1)
+    set_idt_gate(44, (unsigned int)irq12);   // PS/2 Mouse interrupts (IRQ12)
 
     // 5. Load IDT pointer structure into IDTR register
     idt_reg.limit = (sizeof(idt_entry_t) * 256) - 1;

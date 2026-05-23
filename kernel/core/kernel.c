@@ -481,10 +481,23 @@ static void delay(int count) {
     while (i--);
 }
 
+extern char _bss_start;
+extern char _bss_end;
+
+static void clear_bss() {
+    char* bss = &_bss_start;
+    while (bss < &_bss_end) {
+        *bss++ = 0;
+    }
+}
+
 /* =====================================================================
  * KERNEL ENTRY POINT (Receives physical LFB pointer from bootloader)
  * ===================================================================== */
 void kernel_main(unsigned int* vesa_framebuffer) {
+    // 0. Zero out the BSS segment to clean uninitialized globals
+    clear_bss();
+
     // 1. Initialize Memory safety layers first
     init_memory();
 
@@ -646,8 +659,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
         // I. POLL INPUT DEVICES
         // -------------------------------------------------------------
         
-        // 1. Update Mouse controller inputs
-        update_mouse();
+        // 1. Update Mouse controller inputs (asynchronously driven via IRQ12 mouse_handler)
         
         // Detect active mouse inputs
         if (mouse_x != prev_mouse_x || mouse_y != prev_mouse_y || mouse_left_clicked) {

@@ -135,12 +135,10 @@ unsigned int schedule(unsigned int current_esp) {
         }
         task_list[current_task_idx].state = TASK_STATE_RUNNING;
     } else {
-        // Fallback: If no READY task, try to run current task if it is still alive (even if sleeping)
-        if (task_list[current_task_idx].state != TASK_STATE_DORMANT) {
-            task_list[current_task_idx].state = TASK_STATE_RUNNING;
-        } else {
-            // Fallback to desktop GUI (task 0)
-            current_task_idx = 0;
+        // Fallback: If no READY task, safely default to Task 0 (Desktop GUI)
+        // We keep its current state (e.g. SLEEPING) intact so sleep ticks decrement correctly.
+        current_task_idx = 0;
+        if (task_list[0].state == TASK_STATE_DORMANT) {
             task_list[0].state = TASK_STATE_RUNNING;
         }
     }

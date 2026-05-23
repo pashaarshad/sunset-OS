@@ -16,8 +16,11 @@ extern char mouse_right_clicked;
 // Initialize keyboard controller aux port and enable mouse
 void init_mouse();
 
-// Poll hardware registers for new mouse packets
+// Poll hardware registers for new mouse packets (now deprecated/unused)
 void update_mouse();
+
+// Asynchronous hardware interrupt mouse packet byte decoder
+void mouse_handler();
 
 // Draw a beautiful custom mouse pointer overlay
 void draw_mouse_pointer();

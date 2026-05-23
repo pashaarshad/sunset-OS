@@ -12,11 +12,13 @@ section .text
 [global _load_idt]
 [global _irq0]
 [global _irq1]
+[global _irq12]
 
 ; External C handlers
 [extern _exception_handler]
 [extern _schedule]
 [extern _keyboard_handler]
+[extern _mouse_handler]
 
 ; ---------------------------------------------------------------------
 ; load_idt: Loads the IDT register pointer into the CPU
@@ -97,11 +99,9 @@ isr_common_stub:
     mov fs, ax
     mov gs, ax
 
-    ; Push the exception number as the argument to exception_handler
-    mov eax, [esp + 36] ; Offset: pusha (32) + segments (16) - wait, segment pushes are 4 bytes each in 32-bit: ds(4), es(4), fs(4), gs(4) = 16 bytes.
-                        ; Total pushed: pusha(32) + segments(16) = 48 bytes.
-                        ; Exception number was pushed BEFORE, so it's at esp + 48. Dummy error code at esp + 52.
-    push dword [esp + 48]
+    ; Load the exception number (offset: pusha(32) + segments(16) = 48 bytes)
+    mov eax, [esp + 48]
+    push eax            ; Push as the argument to exception_handler
     call _exception_handler
     
     ; exception_handler never returns as it calls kpanic and halts,
@@ -171,6 +171,31 @@ _irq1:
     ; Send EOI to PIC
     mov al, 0x20
     out 0x20, al
+    
+    pop es
+    pop ds
+    popa
+    iret
+
+; ---------------------------------------------------------------------
+; IRQ12: Hardware PS/2 Mouse Event (IRQ12 is on Slave PIC)
+; ---------------------------------------------------------------------
+_irq12:
+    pusha
+    push ds
+    push es
+    
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    
+    ; Call C mouse handler to decode packets
+    call _mouse_handler
+    
+    ; Acknowledge Slave PIC (port 0xA0) and Master PIC (port 0x20)
+    mov al, 0x20
+    out 0xA0, al       ; Send EOI to Slave PIC
+    out 0x20, al       ; Send EOI to Master PIC
     
     pop es
     pop ds

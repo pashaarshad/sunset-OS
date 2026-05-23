@@ -94,10 +94,13 @@ void init_mouse() {
 }
 
 void update_mouse() {
-    // Port 0x64 Status Register:
-    // Bit 0 = Output Buffer Full (data available)
-    // Bit 5 = Auxiliary Output Buffer Full (data comes from mouse, not keyboard)
-    while ((inb(0x64) & 0x21) == 0x21) {
+    // Deprecated: mouse coordinates are now updated asynchronously via IRQ12 mouse_handler
+}
+
+void mouse_handler() {
+    unsigned char status = inb(0x64);
+    // Bit 0 = Output Buffer Full, Bit 5 = Auxiliary Output Buffer Full (Mouse data)
+    if ((status & 0x21) == 0x21) {
         unsigned char val = inb(0x60);
         
         switch (mouse_cycle) {
