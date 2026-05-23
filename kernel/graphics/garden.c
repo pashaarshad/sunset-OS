@@ -8,6 +8,9 @@
 #include "garden.h"
 #include "../memory/memory.h"
 
+extern volatile unsigned int system_ticks;
+static unsigned int last_drift_ticks = 0;
+
 // Global singleton instance of ZenGarden
 ZenGarden global_garden;
 
@@ -42,8 +45,27 @@ void init_garden() {
 }
 
 void draw_garden_content(char* dest_buffer) {
+    // Sakura leaf drifting logic in high wind (wind > 2)
+    if (system_ticks - last_drift_ticks > 300) {
+        last_drift_ticks = system_ticks;
+        int wind = (system_ticks / 200) % 6;
+        if (wind > 2) {
+            for (int r = 0; r < GARDEN_ROWS; r++) {
+                char temp = global_garden.grid[r][GARDEN_COLS - 1];
+                for (int c = GARDEN_COLS - 1; c > 0; c--) {
+                    if (global_garden.grid[r][c - 1] == '*') {
+                        global_garden.grid[r][c] = '*';
+                        global_garden.grid[r][c - 1] = '.';
+                    }
+                }
+                if (temp == '*') {
+                    global_garden.grid[r][0] = '*';
+                }
+            }
+        }
+    }
+
     // Format the Zen Garden sandbox into the window content text buffer.
-    // We construct the view line by line manually since we are freestanding.
     char* ptr = dest_buffer;
 
     // Title & Instructions headers
@@ -68,7 +90,14 @@ void draw_garden_content(char* dest_buffer) {
                 *ptr++ = '@';
                 *ptr++ = ' ';
             } else {
-                *ptr++ = global_garden.grid[r][c];
+                char char_to_draw = global_garden.grid[r][c];
+                // Shimmering sand wave morphing logic
+                if (char_to_draw == '~') {
+                    if ((system_ticks / 50) % 2 == 0) {
+                        char_to_draw = '=';
+                    }
+                }
+                *ptr++ = char_to_draw;
                 *ptr++ = ' '; // Horizontal space padding for visual squares
             }
         }
@@ -85,7 +114,6 @@ void draw_garden_content(char* dest_buffer) {
     helper_strcpy(ptr, "  Status: ");
     ptr += 10;
     helper_strcpy(ptr, global_garden.status_message);
-    ptr += 0; // Just update ptr offset by string length
     
     // Calculate string length of status message to move pointer
     int status_len = 0;
@@ -93,6 +121,23 @@ void draw_garden_content(char* dest_buffer) {
         status_len++;
     }
     ptr += status_len;
+
+    // Append wind indicator to status message
+    helper_strcpy(ptr, " | Wind: ");
+    ptr += 9;
+    int wind = (system_ticks / 200) % 6;
+    if (wind == 0) helper_strcpy(ptr, "Calm");
+    else if (wind == 1) helper_strcpy(ptr, "Gentle ~");
+    else if (wind == 2) helper_strcpy(ptr, "Breeze ~~");
+    else if (wind == 3) helper_strcpy(ptr, "Active ~~~");
+    else if (wind == 4) helper_strcpy(ptr, "Gusty ~~~~");
+    else helper_strcpy(ptr, "Gale ~~~~~");
+    
+    int wind_len = 0;
+    while (ptr[wind_len] != '\0') {
+        wind_len++;
+    }
+    ptr += wind_len;
     
     // Add trailing newline & null terminator
     *ptr++ = '\n';

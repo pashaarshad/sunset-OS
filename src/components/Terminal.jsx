@@ -86,7 +86,7 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
     return found ? found.id : null;
   };
 
-  const handleCommand = (cmdStr) => {
+  const handleCommand = async (cmdStr) => {
     const trimmed = cmdStr.trim();
     if (!trimmed) return;
 
@@ -503,18 +503,52 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
         if (args.length === 0) {
           newHistory.push({ text: "Usage: ping [ip]\nExample: ping 8.8.8.8", type: "error" });
           playCmdChime(false);
+          setHistory(newHistory);
         } else {
           const ip = args[0];
+          newHistory.push({ text: `PING ${ip} (${ip}) 56(84) bytes of data.`, type: "info" });
+          setHistory([...newHistory]);
+
+          let packetsReceived = 0;
+          let latencies = [];
+          
+          for (let seq = 1; seq <= 4; seq++) {
+            const start = performance.now();
+            try {
+              await fetch('https://cloudflare.com/cdn-cgi/trace', { cache: 'no-store', mode: 'no-cors' });
+              const end = performance.now();
+              const duration = Math.round(end - start);
+              packetsReceived++;
+              latencies.push(duration);
+              
+              newHistory.push({ 
+                text: `64 bytes from ${ip}: icmp_seq=${seq} ttl=64 time=${duration}ms`, 
+                type: "text" 
+              });
+              setHistory([...newHistory]);
+            } catch (err) {
+              newHistory.push({ 
+                text: `Request timeout for icmp_seq ${seq} (host ${ip} unreachable)`, 
+                type: "error" 
+              });
+              setHistory([...newHistory]);
+            }
+            await new Promise(r => setTimeout(r, 150));
+          }
+          
+          const packetsTransmitted = 4;
+          const loss = ((packetsTransmitted - packetsReceived) / packetsTransmitted) * 100;
+          const totalTime = latencies.reduce((a, b) => a + b, 0);
+          
           newHistory.push(
-            { text: `PING ${ip} (${ip}) 56(84) bytes of data.`, type: "info" },
-            { text: `64 bytes from ${ip}: icmp_seq=1 ttl=64 time=14ms`, type: "text" },
-            { text: `64 bytes from ${ip}: icmp_seq=2 ttl=64 time=18ms`, type: "text" },
-            { text: `64 bytes from ${ip}: icmp_seq=3 ttl=64 time=11ms`, type: "text" },
-            { text: `64 bytes from ${ip}: icmp_seq=4 ttl=64 time=15ms`, type: "text" },
             { text: `\n--- ${ip} ping statistics ---`, type: "info" },
-            { text: `4 packets transmitted, 4 received, 0% packet loss, time 54ms`, type: "success" }
+            { 
+              text: `${packetsTransmitted} packets transmitted, ${packetsReceived} received, ${loss}% packet loss, time ${totalTime}ms`, 
+              type: loss === 0 ? "success" : "error" 
+            }
           );
-          playCmdChime(true);
+          setHistory([...newHistory]);
+          playCmdChime(packetsReceived > 0);
         }
         break;
 
@@ -522,76 +556,108 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
         if (args.length === 0) {
           newHistory.push({ text: "Usage: fetch [url]\nExample: fetch sunset://rest", type: "error" });
           playCmdChime(false);
+          setHistory(newHistory);
         } else {
           const urlStr = args[0];
           newHistory.push(
             { text: `Connecting to ${urlStr}... HTTP/1.1 200 OK`, type: "info" }
           );
+          setHistory([...newHistory]);
           
-          if (urlStr === 'sunset://rest') {
-            newHistory.push(
-              { text: "   * * *   🌅 SUNSET BREATHING STATION 🌅   * * *", type: "logo" },
-              { text: "         Breathe in the golden rays...", type: "text" },
-              { text: "                 .-~~~~~~~~~-.", type: "text" },
-              { text: "             .-'               '-.", type: "text" },
-              { text: "           .'                     '.", type: "text" },
-              { text: "          /                         \\", type: "text" },
-              { text: "         |                           |", type: "text" },
-              { text: "         |         *   *   *         |", type: "text" },
-              { text: "         |       *           *       |", type: "text" },
-              { text: "         |      *    INHALING   *      |", type: "text" },
-              { text: "          \\      *   (8s hold) *    /", type: "text" },
-              { text: "           '.     *           *   .'", type: "text" },
-              { text: "             '-.     * * *     .-'", type: "text" },
-              { text: "                 '-~~~~~~~~~-'", type: "text" },
-              { text: "         Breathe out the purple dusk.", type: "text" }
-            );
-          } else if (urlStr === 'sunset://gardens') {
-            newHistory.push(
-              { text: "   * * *   🌸 SUNSET ZEN GARDENS 🌸   * * *", type: "logo" },
-              { text: "         A grid of calm, beauty, and peace.", type: "text" },
-              { text: "  +---------------------------------+", type: "text" },
-              { text: "  | . . . . O . . . . . . . . . . . |", type: "text" },
-              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
-              { text: "  | . . . . @ . . . . . . . . . . . |", type: "text" },
-              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
-              { text: "  | . . . . . . . . . . . . * . . . |", type: "text" },
-              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
-              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
-              { text: "  | . . . . . . . . . . . O . . . . |", type: "text" },
-              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
-              { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
-              { text: "  +---------------------------------+", type: "text" },
-              { text: "  Status: A quiet mind rakes the sand.", type: "success" }
-            );
-          } else if (urlStr === 'sunset://clouds') {
-            newHistory.push(
-              { text: "   * * *   ☁️ SUNSET CLOUD VISUALIZER ☁️   * * *", type: "logo" },
-              { text: "       Gentle atmospheric patterns in the sky.", type: "text" },
-              { text: "                  _  _", type: "text" },
-              { text: "                ( `   )_", type: "text" },
-              { text: "               (    )   `)", type: "text" },
-              { text: "             (_   (_(_ . _) _)", type: "text" },
-              { text: "                 _  _", type: "text" },
-              { text: "               (  `   )", type: "text" },
-              { text: "              (  (     )  )", type: "text" },
-              { text: "             (__________`_)", type: "text" }
-            );
+          if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+            newHistory.push({ text: `[!] Fetching real-world remote resource via active HTTP link...`, type: "info" });
+            setHistory([...newHistory]);
+            try {
+              const res = await fetch(urlStr);
+              const text = await res.text();
+              
+              newHistory.push({ text: `[HTTP 200 OK] Received ${text.length} bytes. Parsing content:`, type: "success" });
+              
+              const lines = text.split('\n').slice(0, 10);
+              lines.forEach(line => {
+                newHistory.push({ text: line.slice(0, 80), type: "text" });
+              });
+              if (text.split('\n').length > 10) {
+                newHistory.push({ text: `... [truncated remaining lines] ...`, type: "info" });
+              }
+              setHistory([...newHistory]);
+              playCmdChime(true);
+            } catch (err) {
+              newHistory.push({ 
+                text: `[Network Error] Failed to retrieve content. Link may be blocked by browser CORS restrictions.`, 
+                type: "error" 
+              });
+              newHistory.push({ text: `Details: ${err.message}`, type: "error" });
+              setHistory([...newHistory]);
+              playCmdChime(false);
+            }
           } else {
-            newHistory.push(
-              { text: "Resolved mock external host via SunsetDNS.", type: "info" },
-              { text: "[Serene Resource List]", type: "info" },
-              { text: "1. nature.org - Explore nature preserves", type: "text" },
-              { text: "2. calm.com - Serene breathing spaces", type: "text" },
-              { text: "3. github.com/sunset-OS - View sources", type: "text" }
-            );
+            if (urlStr === 'sunset://rest') {
+              newHistory.push(
+                { text: "   * * *   🌅 SUNSET BREATHING STATION 🌅   * * *", type: "logo" },
+                { text: "         Breathe in the golden rays...", type: "text" },
+                { text: "                 .-~~~~~~~~~-.", type: "text" },
+                { text: "             .-'               '-.", type: "text" },
+                { text: "           .'                     '.", type: "text" },
+                { text: "          /                         \\", type: "text" },
+                { text: "         |                           |", type: "text" },
+                { text: "         |         *   *   *         |", type: "text" },
+                { text: "         |       *           *       |", type: "text" },
+                { text: "         |      *    INHALING   *      |", type: "text" },
+                { text: "          \\      *   (8s hold) *    /", type: "text" },
+                { text: "           '.     *           *   .'", type: "text" },
+                { text: "             '-.     * * *     .-'", type: "text" },
+                { text: "                 '-~~~~~~~~~-'", type: "text" },
+                { text: "         Breathe out the purple dusk.", type: "text" }
+              );
+            } else if (urlStr === 'sunset://gardens') {
+              newHistory.push(
+                { text: "   * * *   🌸 SUNSET ZEN GARDENS 🌸   * * *", type: "logo" },
+                { text: "         A grid of calm, beauty, and peace.", type: "text" },
+                { text: "  +---------------------------------+", type: "text" },
+                { text: "  | . . . . O . . . . . . . . . . . |", type: "text" },
+                { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+                { text: "  | . . . . @ . . . . . . . . . . . |", type: "text" },
+                { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+                { text: "  | . . . . . . . . . . . . * . . . |", type: "text" },
+                { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+                { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+                { text: "  | . . . . . . . . . . . O . . . . |", type: "text" },
+                { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+                { text: "  | . . . . . . . . . . . . . . . . |", type: "text" },
+                { text: "  +---------------------------------+", type: "text" },
+                { text: "  Status: A quiet mind rakes the sand.", type: "success" }
+              );
+            } else if (urlStr === 'sunset://clouds') {
+              newHistory.push(
+                { text: "   * * *   ☁️ SUNSET CLOUD VISUALIZER ☁️   * * *", type: "logo" },
+                { text: "       Gentle atmospheric patterns in the sky.", type: "text" },
+                { text: "                  _  _", type: "text" },
+                { text: "                ( `   )_", type: "text" },
+                { text: "               (    )   `)", type: "text" },
+                { text: "             (_   (_(_ . _) _)", type: "text" },
+                { text: "                 _  _", type: "text" },
+                { text: "               (  `   )", type: "text" },
+                { text: "              (  (     )  )", type: "text" },
+                { text: "             (__________`_)", type: "text" }
+              );
+            } else {
+              newHistory.push(
+                { text: "Resolved mock external host via SunsetDNS.", type: "info" },
+                { text: "[Serene Resource List]", type: "info" },
+                { text: "1. nature.org - Explore nature preserves", type: "text" },
+                { text: "2. calm.com - Serene breathing spaces", type: "text" },
+                { text: "3. github.com/sunset-OS - View sources", type: "text" }
+              );
+            }
+            
+            if (triggerSystemAction) {
+              newHistory.push({ text: `[+] Launching Zen Browser redirected to ${urlStr}...`, type: "success" });
+              triggerSystemAction('open_browser', urlStr);
+            }
+            playCmdChime(true);
           }
-          
-          if (triggerSystemAction) {
-            newHistory.push({ text: `[+] Launching Zen Browser redirected to ${urlStr}...`, type: "success" });
-            triggerSystemAction('open_browser', urlStr);
-          }
-          playCmdChime(true);
+          setHistory([...newHistory]);
         }
         break;
 

@@ -44,7 +44,9 @@ static int shell_len = 0;
 
 static char garden_buffer[512];
 static char notes_buffer[1024];
+static char calendar_buffer[512];
 static char show_garden = 0;
+static char show_cal = 1;
 static char cwd[32] = "";
 
 static void helper_strcpy(char* dest, const char* src) {
@@ -52,6 +54,18 @@ static void helper_strcpy(char* dest, const char* src) {
     while (src[i] != '\0') {
         dest[i] = src[i];
         i++;
+    }
+    dest[i] = '\0';
+}
+
+static void helper_strcat(char* dest, const char* src) {
+    int i = 0;
+    while (dest[i] != '\0') {
+        i++;
+    }
+    int j = 0;
+    while (src[j] != '\0') {
+        dest[i++] = src[j++];
     }
     dest[i] = '\0';
 }
@@ -76,6 +90,115 @@ static void format_time_string(int h, int m, int s, char* out) {
     out[16] = 'E';
     out[17] = '\0';
 }
+
+static void uint_to_str(unsigned int val, char* buf);
+
+static const char* calendar_month_names[] = {
+    "", "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+    "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
+};
+
+static int is_leap_year(int y) {
+    int year = 2000 + y;
+    return ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0));
+}
+
+static int get_days_in_month(int m, int y) {
+    if (m == 2) {
+        return is_leap_year(y) ? 29 : 28;
+    }
+    if (m == 4 || m == 6 || m == 9 || m == 11) {
+        return 30;
+    }
+    return 31;
+}
+
+static int get_day_of_week(int d, int m, int y) {
+    int year = 2000 + y;
+    static int t[] = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 };
+    if (m < 3) {
+        year -= 1;
+    }
+    return (year + year/4 - year/100 + year/400 + t[m-1] + d) % 7;
+}
+
+static void format_calendar_cell(int d, int is_today, char* out) {
+    if (is_today) {
+        if (d < 10) {
+            out[0] = ' ';
+            out[1] = '[';
+            out[2] = '0' + d;
+            out[3] = ']';
+        } else {
+            out[0] = '[';
+            out[1] = '0' + (d / 10);
+            out[2] = '0' + (d % 10);
+            out[3] = ']';
+        }
+    } else {
+        if (d < 10) {
+            out[0] = ' ';
+            out[1] = ' ';
+            out[2] = ' ';
+            out[3] = '0' + d;
+        } else {
+            out[0] = ' ';
+            out[1] = ' ';
+            out[2] = '0' + (d / 10);
+            out[3] = '0' + (d % 10);
+        }
+    }
+    out[4] = '\0';
+}
+
+static void format_calendar_content(char* dest) {
+    int h, min, s, dy, mo, yr;
+    rtc_get_time(&h, &min, &s, &dy, &mo, &yr);
+    
+    dest[0] = '\0';
+    helper_strcat(dest, "      ");
+    if (mo >= 1 && mo <= 12) {
+        helper_strcat(dest, calendar_month_names[mo]);
+    } else {
+        helper_strcat(dest, "UNKNOWN");
+    }
+    helper_strcat(dest, " 20");
+    char yr_str[16];
+    uint_to_str(yr, yr_str);
+    if (yr < 10) {
+        helper_strcat(dest, "0");
+    }
+    helper_strcat(dest, yr_str);
+    helper_strcat(dest, "\n");
+    
+    helper_strcat(dest, "  Su  Mo  Tu  We  Th  Fr  Sa\n");
+    
+    int days_in_month = get_days_in_month(mo, yr);
+    int start_day = get_day_of_week(1, mo, yr);
+    
+    for (int i = 0; i < start_day; i++) {
+        helper_strcat(dest, "    ");
+    }
+    
+    int col = start_day;
+    for (int d = 1; d <= days_in_month; d++) {
+        char cell[8];
+        format_calendar_cell(d, (d == dy), cell);
+        helper_strcat(dest, cell);
+        
+        col++;
+        if (col == 7) {
+            helper_strcat(dest, "\n");
+            col = 0;
+        }
+    }
+    if (col != 0) {
+        helper_strcat(dest, "\n");
+    }
+    
+    helper_strcat(dest, "\n Breathe deeply. Reflect today.");
+}
+
 
 // Context memory history buffer
 static char cmd_history[5][32];
@@ -451,6 +574,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
     Window win_notes;
     Window win_shell;
     Window win_garden;
+    Window win_cal;
 
     init_garden();
 
@@ -473,6 +597,9 @@ void kernel_main(unsigned int* vesa_framebuffer) {
 
     init_window(&win_garden, 220, 150, 360, 240, "Zen Garden Sandbox", garden_buffer);
 
+    format_calendar_content(calendar_buffer);
+    init_window(&win_cal, 40, 300, 320, 210, "Calm Calendar", calendar_buffer);
+
     // State trackers for signature idle breathing Ambient Mode
     unsigned int idle_timer = 0;
     char is_ambient = 0;
@@ -490,6 +617,12 @@ void kernel_main(unsigned int* vesa_framebuffer) {
         
         // Keep Diagnostics content pointer synced to our dynamic buffer
         win_diag.content = diag_buffer;
+
+        // Keep Calendar content pointer synced and formatted dynamically
+        if (show_cal) {
+            format_calendar_content(calendar_buffer);
+            win_cal.content = calendar_buffer;
+        }
 
         // -------------------------------------------------------------
         // I. POLL INPUT DEVICES
@@ -568,7 +701,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                             "help", "clear", "ambient", "panic", "about", "chime",
                             "play", "history", "ifconfig", "ping", "fetch", "garden",
                             "note", "lofi", "ls", "cat", "touch", "write", "rm",
-                            "mkdir", "cd", "pwd", "time", 0
+                            "mkdir", "cd", "pwd", "time", "cal", 0
                         };
                         const char* hit = 0; int cnt = 0;
                         for (int c = 0; cmds[c] != 0; c++) {
@@ -631,7 +764,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 if (cmd_idx == 0) {
                     append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "help") == 0) {
-                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3],\n          ls, cd [dir], cd .., mkdir [dir],\n          pwd, cat [file], touch [file],\n          write [file] [txt], rm [file],\n          time");
+                    append_to_shell("\nCommands: help, clear, ambient, panic,\n          about, chime, play, history,\n          ifconfig, ping [ip], fetch [url],\n          garden, note [msg], lofi [1-3],\n          ls, cd [dir], cd .., mkdir [dir],\n          pwd, cat [file], touch [file],\n          write [file] [txt], rm [file],\n          time, cal");
                     append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "ls") == 0) {
                     char file_list[512];
@@ -815,6 +948,15 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     append_to_shell(s_str);
                     
                     append_to_shell(" UTC/Local\n");
+                    append_prompt_to_shell();
+                } else if (sh_strcmp(cmd, "cal") == 0) {
+                    append_to_shell("\nSpawning Calm Calendar window...");
+                    show_cal = 1;
+                    win_diag.active = 0;
+                    win_notes.active = 0;
+                    win_shell.active = 0;
+                    win_garden.active = 0;
+                    win_cal.active = 1;
                     append_prompt_to_shell();
                 } else if (sh_strncmp(cmd, "note ", 5) == 0 || sh_strcmp(cmd, "note") == 0) {
                     const char* msg = cmd + 4;
@@ -1025,6 +1167,9 @@ void kernel_main(unsigned int* vesa_framebuffer) {
             if (show_garden) {
                 handle_window_dragging(&win_garden, mouse_x, mouse_y, mouse_left_clicked);
             }
+            if (show_cal) {
+                handle_window_dragging(&win_cal, mouse_x, mouse_y, mouse_left_clicked);
+            }
 
             // 2. Window active focus layering sorting
             if (mouse_left_clicked) {
@@ -1033,21 +1178,31 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     win_notes.active = 0;
                     win_shell.active = 0;
                     win_garden.active = 0;
+                    win_cal.active = 0;
                 } else if (win_notes.is_dragging) {
                     win_diag.active = 0;
                     win_notes.active = 1;
                     win_shell.active = 0;
                     win_garden.active = 0;
+                    win_cal.active = 0;
                 } else if (win_shell.is_dragging) {
                     win_diag.active = 0;
                     win_notes.active = 0;
                     win_shell.active = 1;
                     win_garden.active = 0;
+                    win_cal.active = 0;
                 } else if (show_garden && win_garden.is_dragging) {
                     win_diag.active = 0;
                     win_notes.active = 0;
                     win_shell.active = 0;
                     win_garden.active = 1;
+                    win_cal.active = 0;
+                } else if (show_cal && win_cal.is_dragging) {
+                    win_diag.active = 0;
+                    win_notes.active = 0;
+                    win_shell.active = 0;
+                    win_garden.active = 0;
+                    win_cal.active = 1;
                 }
             }
 
@@ -1068,21 +1223,31 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 draw_window(&win_diag);
                 draw_window(&win_notes);
                 if (show_garden) draw_window(&win_garden);
+                if (show_cal) draw_window(&win_cal);
                 draw_window(&win_shell);
             } else if (win_notes.active) {
                 draw_window(&win_diag);
                 draw_window(&win_shell);
                 if (show_garden) draw_window(&win_garden);
+                if (show_cal) draw_window(&win_cal);
                 draw_window(&win_notes);
             } else if (show_garden && win_garden.active) {
                 draw_window(&win_diag);
                 draw_window(&win_notes);
                 draw_window(&win_shell);
+                if (show_cal) draw_window(&win_cal);
                 draw_window(&win_garden);
+            } else if (show_cal && win_cal.active) {
+                draw_window(&win_diag);
+                draw_window(&win_notes);
+                if (show_garden) draw_window(&win_garden);
+                draw_window(&win_shell);
+                draw_window(&win_cal);
             } else {
                 draw_window(&win_shell);
                 draw_window(&win_notes);
                 if (show_garden) draw_window(&win_garden);
+                if (show_cal) draw_window(&win_cal);
                 draw_window(&win_diag);
             }
 

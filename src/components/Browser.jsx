@@ -27,8 +27,11 @@ export default function Browser({ initialUrl }) {
 
   // Sound generator state
   const [audioActive, setAudioActive] = useState(false);
+  const [windIntensity, setWindIntensity] = useState('mild'); // 'calm' | 'mild' | 'active'
   const audioCtxRef = useRef(null);
   const synthIntervalRef = useRef(null);
+  const windGainRef = useRef(null);
+  const windFilterRef = useRef(null);
 
   // Breathing state
   const [breathPhase, setBreathPhase] = useState('Inhale'); // Inhale, Hold, Exhale
@@ -108,10 +111,20 @@ export default function Browser({ initialUrl }) {
       whiteNoise.buffer = noiseBuffer;
       whiteNoise.loop = true;
 
+      let initialGain = 0.08;
+      let initialFreq = 350;
+      if (windIntensity === 'calm') {
+        initialGain = 0.02;
+        initialFreq = 220;
+      } else if (windIntensity === 'active') {
+        initialGain = 0.22;
+        initialFreq = 550;
+      }
+
       // Filter white noise to sound like wind/rustles
       const filter = ctx.createBiquadFilter();
       filter.type = 'bandpass';
-      filter.frequency.value = 350;
+      filter.frequency.value = initialFreq;
       filter.Q.value = 1.0;
 
       // Modulate filter frequency to simulate breathing waves
@@ -125,7 +138,10 @@ export default function Browser({ initialUrl }) {
       modulator.start();
 
       const mainGain = ctx.createGain();
-      mainGain.gain.value = 0.08;
+      mainGain.gain.value = initialGain;
+
+      windGainRef.current = mainGain;
+      windFilterRef.current = filter;
 
       whiteNoise.connect(filter);
       filter.connect(mainGain);
@@ -197,6 +213,28 @@ export default function Browser({ initialUrl }) {
       stopProceduralAudio();
     };
   }, []);
+
+  useEffect(() => {
+    if (audioActive && windGainRef.current && windFilterRef.current) {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      
+      let gainVal = 0.08;
+      let freqVal = 350;
+      
+      if (windIntensity === 'calm') {
+        gainVal = 0.02;
+        freqVal = 220;
+      } else if (windIntensity === 'active') {
+        gainVal = 0.22;
+        freqVal = 550;
+      }
+      
+      // Smoothly ramp parameters over 0.25 seconds to avoid click pops
+      windGainRef.current.gain.linearRampToValueAtTime(gainVal, ctx.currentTime + 0.25);
+      windFilterRef.current.frequency.linearRampToValueAtTime(freqVal, ctx.currentTime + 0.25);
+    }
+  }, [windIntensity, audioActive]);
 
   // Garden Tickers for natural plant growth
   useEffect(() => {
@@ -291,6 +329,20 @@ export default function Browser({ initialUrl }) {
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
+  const getSwayStyle = () => {
+    let duration = '2.5s';
+    if (windIntensity === 'calm') {
+      duration = '4.5s';
+    } else if (windIntensity === 'active') {
+      duration = '1.1s';
+    }
+    return {
+      display: 'inline-block',
+      transformOrigin: 'bottom center',
+      animation: `sway ${duration} ease-in-out infinite`
+    };
+  };
+
   // RENDER INTERNALS BASED ON CURRENT MOCK ADDR
   const renderBrowserContent = () => {
     if (url === 'sunset://rest') {
@@ -381,6 +433,29 @@ export default function Browser({ initialUrl }) {
                 ))}
               </div>
 
+              {/* Wind selector */}
+              <div className="flex bg-slate-900/60 rounded-lg p-0.5 border border-white/5 gap-1 items-center px-2">
+                <span className="text-[9px] text-white/40 uppercase font-bold tracking-wider mr-1">Wind:</span>
+                {[
+                  { id: 'calm', label: 'Calm', icon: '🍃' },
+                  { id: 'mild', label: 'Breeze', icon: '💨' },
+                  { id: 'active', label: 'Gale', icon: '🌪️' }
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setWindIntensity(opt.id)}
+                    className={`px-2 py-0.5 text-[9px] rounded-md transition-all font-semibold ${
+                      windIntensity === opt.id
+                        ? 'bg-amber-500/25 border border-amber-500/40 text-amber-200 shadow-sm'
+                        : 'text-white/40 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>{opt.icon}</span> <span className="hidden sm:inline">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+
               {/* Synthesizer button */}
               <button
                 onClick={toggleAudio}
@@ -422,7 +497,10 @@ export default function Browser({ initialUrl }) {
                   >
                     {/* Flower Graphic */}
                     {cell.type ? (
-                      <span className="text-2xl transform transition-transform group-hover:scale-110 duration-200">
+                      <span 
+                        className="text-2xl transform transition-transform group-hover:scale-110 duration-200"
+                        style={getSwayStyle()}
+                      >
                         {getFlowerEmoji(cell)}
                       </span>
                     ) : (
@@ -619,6 +697,12 @@ export default function Browser({ initialUrl }) {
 
   return (
     <div className="flex flex-col h-full bg-slate-950/20 text-white font-sans text-sm selection:bg-orange-500/30">
+      <style>{`
+        @keyframes sway {
+          0%, 100% { transform: rotate(-${windIntensity === 'calm' ? '2.5deg' : windIntensity === 'active' ? '15deg' : '6deg'}); }
+          50% { transform: rotate(${windIntensity === 'calm' ? '2.5deg' : windIntensity === 'active' ? '15deg' : '6deg'}); }
+        }
+      `}</style>
       {/* Browser Nav / Address bar */}
       <div className="flex items-center gap-3 p-3.5 border-b border-white/5 bg-slate-950/40 backdrop-blur-md">
         
