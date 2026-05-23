@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Terminal as TermIcon, Folder, FileText, Music, Sparkles, Sun, Moon, TreePine, 
-  Cpu, HardDrive, Wifi, Volume2, Calendar, Clock, RefreshCw, Globe 
+  Cpu, HardDrive, Wifi, Volume2, Calendar, Clock, RefreshCw, Globe,
+  Monitor, Settings, Trash2
 } from 'lucide-react';
 
 import FileManager from './components/FileManager';
@@ -14,6 +15,8 @@ import Browser from './components/Browser';
 import bgImage from './assets/sunset_bg.png';
 
 export default function App() {
+  const [showTrashDialog, setShowTrashDialog] = useState(false);
+  const [showSunsetMenu, setShowSunsetMenu] = useState(false);
   // 1. OS Boot & Theme State
   const [isBooted, setIsBooted] = useState(false);
   const [bootLogs, setBootLogs] = useState([]);
@@ -580,87 +583,251 @@ export default function App() {
 
       </main>
 
-      {/* 🚀 TASKBAR (FROSTED GLASS PANEL) */}
-      <footer className="taskbar glass-panel shadow-2xl flex items-center justify-between px-6 backdrop-blur-md">
-        
-        {/* App short-cut launcher items */}
-        <div className="flex gap-4 items-center">
-          <div 
-            onClick={() => openApp('filemanager')}
-            className={`taskbar-icon relative ${openApps.filemanager ? 'active bg-white/10' : ''}`}
-            title="File Explorer"
-          >
-            <Folder className="w-5 h-5 text-amber-300" />
+      {/* 🌅 SUNSET QUICK MENU POPUP */}
+      {showSunsetMenu && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-[220px] w-64 bg-[#1e0d10]/95 border border-white/5 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl p-4 z-[99999] flex flex-col gap-3.5 select-none animate-[typing-appear_0.2s_ease-out]">
+          <div className="flex items-center justify-between border-b border-white/5 pb-2">
+            <span className="font-bold flex items-center gap-1.5 text-orange-300 text-xs">
+              🌅 Sunset Quick Settings
+            </span>
+            <button 
+              onClick={() => {
+                const randomQuotes = quotes[Math.floor(Math.random() * quotes.length)];
+                alert(randomQuotes);
+              }}
+              className="p-1 rounded hover:bg-white/5 text-white/50 hover:text-white"
+              title="New Quote"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] text-white/45 tracking-wider uppercase font-semibold">Change Theme</p>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setTheme('sunset')} 
+                className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-all ${theme === 'sunset' ? 'bg-orange-500/20 text-orange-300 border-orange-500/30' : 'bg-white/5 text-white/60 border-transparent'}`}
+              >
+                Sunset
+              </button>
+              <button 
+                onClick={() => setTheme('greenery')} 
+                className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-all ${theme === 'greenery' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-white/5 text-white/60 border-transparent'}`}
+              >
+                Greenery
+              </button>
+              <button 
+                onClick={() => setTheme('dusk')} 
+                className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-all ${theme === 'dusk' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-white/5 text-white/60 border-transparent'}`}
+              >
+                Dusk
+              </button>
+            </div>
           </div>
 
-          <div 
-            onClick={() => openApp('texteditor')}
-            className={`taskbar-icon relative ${openApps.texteditor ? 'active bg-white/10' : ''}`}
-            title="Text Editor"
-          >
-            <FileText className="w-5 h-5 text-orange-400" />
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] text-white/45 tracking-wider uppercase font-semibold">Music Stream</p>
+            <button 
+              onClick={() => toggleAmbientMusic(!isAmbientPlaying)}
+              className={`w-full py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 border transition-all ${isAmbientPlaying ? 'bg-orange-500 text-white border-orange-500' : 'bg-white/5 text-white/60 border-transparent'}`}
+            >
+              <Volume2 className={`w-3.5 h-3.5 ${isAmbientPlaying ? 'animate-bounce' : ''}`} />
+              <span>{isAmbientPlaying ? "Lofi ON (Click to Mute)" : "Lofi Stream OFF"}</span>
+            </button>
           </div>
 
-          <div 
-            onClick={() => openApp('mediasuite')}
-            className={`taskbar-icon relative ${openApps.mediasuite ? 'active bg-white/10' : ''}`}
-            title="Media Player"
-          >
-            <Music className="w-5 h-5 text-pink-400" />
-          </div>
-
-          <div 
-            onClick={() => openApp('terminal')}
-            className={`taskbar-icon relative ${openApps.terminal ? 'active bg-white/10' : ''}`}
-            title="Console Shell"
-          >
-            <TermIcon className="w-5 h-5 text-emerald-400" />
-          </div>
-
-          <div 
-            onClick={() => openApp('browser')}
-            className={`taskbar-icon relative ${openApps.browser ? 'active bg-white/10' : ''}`}
-            title="Zen Browser"
-          >
-            <Globe className="w-5 h-5 text-blue-300" />
-          </div>
-
-          <span className="w-px h-6 bg-white/10 mx-1"></span>
-
-          {/* AI Voice Assistant trigger in taskbar */}
-          <div 
-            onClick={() => openApp('voiceassistant')}
-            className={`taskbar-icon relative ${openApps.voiceassistant ? 'active bg-white/10' : ''} bg-orange-500/10 border-orange-500/20`}
-            title="Ghuroob AI Voice Assistant"
-          >
-            <Sparkles className="w-5 h-5 text-orange-300" />
+          <div className="border-t border-white/5 pt-2 mt-1">
+            <p className="text-[10px] text-white/40 italic leading-relaxed">
+              "{quotes[Math.floor(time.getSeconds() / 15) % quotes.length]}"
+            </p>
           </div>
         </div>
+      )}
 
-        {/* Ambient audio player quick trigger & Ticking Clock */}
-        <div className="flex items-center gap-4 pl-4 border-l border-white/10">
-          <button 
-            onClick={() => toggleAmbientMusic(!isAmbientPlaying)}
-            className={`p-2 rounded-xl transition-all duration-300 flex items-center gap-1.5 text-xs font-semibold ${isAmbientPlaying ? 'bg-orange-500 text-white shadow-md' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
-          >
-            <Volume2 className={`w-4 h-4 ${isAmbientPlaying ? 'animate-bounce' : ''}`} />
-            <span>{isAmbientPlaying ? "Lofi ON" : "Muted"}</span>
-          </button>
-
-          <span className="w-px h-6 bg-white/10 mx-1"></span>
-
-          {/* Premium ticking clock mirroring kernel's display */}
-          <div className="flex items-center gap-2 font-mono text-[11px] font-semibold text-orange-400 drop-shadow-[0_0_8px_rgba(249,115,22,0.3)] bg-black/40 px-3 py-1.5 rounded-lg border border-orange-500/20">
-            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-            <span>
-              {(() => {
-                const hh = String(time.getHours()).padStart(2, '0');
-                const mm = String(time.getMinutes()).padStart(2, '0');
-                const ss = String(time.getSeconds()).padStart(2, '0');
-                return `[${hh}:${mm}:${ss}] ONLINE`;
-              })()}
-            </span>
+      {/* 🗑️ ZEN TRASH MODAL */}
+      {showTrashDialog && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999999] select-none">
+          <div className="w-80 bg-[#1e0d10]/95 border border-[#ff7f50]/30 p-6 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col items-center text-center animate-[typing-appear_0.25s_ease-out]">
+            <span className="text-4xl mb-3">🗑️</span>
+            <h3 className="text-base font-bold text-orange-300 mb-2">Zen Mind, Empty Trash</h3>
+            <p className="text-xs text-white/70 leading-relaxed mb-5">
+              "Calm Mind, Empty Trash. Absolute peace has no waste. Sunset OS has automatically recycled all digital stress."
+            </p>
+            
+            <div className="w-full flex gap-3">
+              <button 
+                onClick={() => {
+                  const vfs = JSON.parse(localStorage.getItem('sunset_os_vfs') || '[]');
+                  const filtered = vfs.filter(item => item.parent !== 'trash');
+                  localStorage.setItem('sunset_os_vfs', JSON.stringify(filtered));
+                  window.dispatchEvent(new Event('sunset_vfs_changed'));
+                  
+                  try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const playTone = (f, t, d) => {
+                      const osc = ctx.createOscillator();
+                      const gain = ctx.createGain();
+                      osc.connect(gain); gain.connect(ctx.destination);
+                      osc.frequency.value = f; osc.type = 'triangle';
+                      gain.gain.setValueAtTime(0.001, t);
+                      gain.gain.linearRampToValueAtTime(0.1, t + 0.02);
+                      gain.gain.exponentialRampToValueAtTime(0.001, t + d);
+                      osc.start(t); osc.stop(t + d);
+                    };
+                    const now = ctx.currentTime;
+                    playTone(880, now, 0.15);
+                    playTone(1046, now + 0.1, 0.25);
+                  } catch (e) {}
+                  
+                  setShowTrashDialog(false);
+                }}
+                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 font-semibold text-xs text-white shadow-lg transition-all"
+              >
+                Empty Mind
+              </button>
+              <button 
+                onClick={() => setShowTrashDialog(false)}
+                className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 font-semibold text-xs text-white/80 transition-colors"
+              >
+                Absolute Peace
+              </button>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* 🚀 CENTERED FLOATING BOTTOM DOCK */}
+      <footer className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-[#1e0d10]/75 backdrop-blur-2xl rounded-2xl border border-white/5 shadow-[0_12px_40px_rgba(0,0,0,0.5)] z-[9999] flex items-center gap-3 transition-all duration-300 select-none">
+        
+        {/* Item 1: Sunset Menu Sun */}
+        <div 
+          onClick={() => { setShowSunsetMenu(!showSunsetMenu); }}
+          className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
+          title="Sunset Menu"
+        >
+          <svg className="w-9 h-9 transition-transform duration-300 group-hover:scale-110" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="sunGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#f39c12" />
+                <stop offset="50%" stopColor="#d35400" />
+                <stop offset="100%" stopColor="#c0392b" />
+              </linearGradient>
+            </defs>
+            <circle cx="20" cy="20" r="18" fill="url(#sunGrad)" />
+            <line x1="20" y1="6" x2="20" y2="2" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            <line x1="20" y1="34" x2="20" y2="38" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            <line x1="6" y1="20" x2="2" y2="20" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            <line x1="34" y1="20" x2="38" y2="20" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            <path d="M12 28C14 26 17 25 20 25C23 25 26 26 28 28" stroke="white" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          {showSunsetMenu && <span className="absolute -bottom-1.5 w-1.5 h-1.5 rounded-full bg-orange-400 shadow-[0_0_6px_rgba(249,115,22,0.8)]" />}
+        </div>
+
+        {/* Item 2: Shell Console */}
+        <div 
+          onClick={() => openApp('terminal')}
+          className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
+          title="Terminal Shell"
+        >
+          <svg className="w-9 h-9 transition-transform duration-300 group-hover:scale-110" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="40" height="40" rx="10" fill="#1e272e" stroke="#2f3640" strokeWidth="1" />
+            <path d="M12 14L18 20L12 26" stroke="#2ecc71" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="20" y1="26" x2="28" y2="26" stroke="#2ecc71" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+          {openApps.terminal && <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(46,204,113,0.8)]" />}
+        </div>
+
+        {/* Item 3: File Manager */}
+        <div 
+          onClick={() => openApp('filemanager')}
+          className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
+          title="File Manager"
+        >
+          <svg className="w-9 h-9 transition-transform duration-300 group-hover:scale-110" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="folderGradDock" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#e67e22" />
+                <stop offset="100%" stopColor="#e74c3c" />
+              </linearGradient>
+            </defs>
+            <path d="M4 10C4 8.5 5.2 7 7 7H16L20 11H33C34.8 11 36 12.5 36 14V33C36 34.5 34.8 36 33 36H7C5.2 36 4 34.5 4 33V10Z" fill="url(#folderGradDock)" />
+            <path d="M4 14C4 12.5 5.2 11 7 11H33C34.8 11 36 12.5 36 14V33C36 34.5 34.8 36 33 36H7C5.2 36 4 34.5 4 33V14Z" fill="#f39c12" />
+          </svg>
+          {openApps.filemanager && <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(241,196,15,0.8)]" />}
+        </div>
+
+        {/* Item 4: Text Editor */}
+        <div 
+          onClick={() => openApp('texteditor')}
+          className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
+          title="Text Editor"
+        >
+          <svg className="w-9 h-9 transition-transform duration-300 group-hover:scale-110" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="4" width="28" height="32" rx="6" fill="#fff" stroke="#ffdcd4" strokeWidth="1" />
+            <line x1="12" y1="12" x2="28" y2="12" stroke="#ff7f50" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="12" y1="20" x2="28" y2="20" stroke="#ff7f50" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="12" y1="28" x2="22" y2="28" stroke="#ff7f50" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M26 24L32 18L34 20L28 26L26 24Z" fill="#ff7f50" />
+          </svg>
+          {openApps.texteditor && <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-orange-400 shadow-[0_0_6px_rgba(249,115,22,0.8)]" />}
+        </div>
+
+        {/* Item 5: Music / Media Suite Audio */}
+        <div 
+          onClick={() => openApp('mediasuite', { tab: 'audio' })}
+          className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
+          title="Music Suite"
+        >
+          <svg className="w-9 h-9 transition-transform duration-300 group-hover:scale-110" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="40" height="40" rx="10" fill="#2c1a1d" stroke="#5d2a2c" strokeWidth="1" />
+            <circle cx="14" cy="26" r="4" fill="#e74c3c" />
+            <circle cx="28" cy="24" r="4" fill="#e74c3c" />
+            <path d="M18 26V10L32 8V24" stroke="#e74c3c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </svg>
+          {openApps.mediasuite && mediaSuiteTab === 'audio' && <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-pink-400 shadow-[0_0_6px_rgba(233,78,119,0.8)]" />}
+        </div>
+
+        {/* Item 6: Zen Quick Settings Cog */}
+        <div 
+          onClick={() => { setShowSunsetMenu(!showSunsetMenu); }}
+          className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
+          title="System Settings"
+        >
+          <svg className="w-9 h-9 transition-transform duration-300 group-hover:scale-110" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="40" height="40" rx="10" fill="#333" stroke="#444" strokeWidth="1" />
+            <circle cx="20" cy="20" r="5" fill="none" stroke="#ccc" strokeWidth="3" />
+            <path d="M20 8V12M20 28V32M8 20H12M28 20H32M11.5 11.5L14.3 14.3M25.7 25.7L28.5 28.5M11.5 28.5L14.3 25.7M25.7 11.5L28.5 14.3" stroke="#ccc" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+        </div>
+
+        {/* Item 7: Photos / Media Suite Image */}
+        <div 
+          onClick={() => openApp('mediasuite', { tab: 'image' })}
+          className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
+          title="Gallery Suite"
+        >
+          <svg className="w-9 h-9 transition-transform duration-300 group-hover:scale-110" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="40" height="40" rx="10" fill="#d35400" stroke="#e67e22" strokeWidth="1" />
+            <rect x="6" y="6" width="28" height="28" rx="4" fill="#ff7f50" />
+            <circle cx="13" cy="13" r="2.5" fill="#f1c40f" />
+            <path d="M6 28L16 18L34 34H6Z" fill="#e74c3c" />
+          </svg>
+          {openApps.mediasuite && mediaSuiteTab === 'image' && <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-orange-400 shadow-[0_0_6px_rgba(249,115,22,0.8)]" />}
+        </div>
+
+        {/* Item 8: Recycled Trash */}
+        <div 
+          onClick={() => setShowTrashDialog(true)}
+          className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
+          title="Zen Trash"
+        >
+          <svg className="w-9 h-9 transition-transform duration-300 group-hover:scale-110" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="40" height="40" rx="10" fill="#1c0f12" stroke="#2c1418" strokeWidth="1" />
+            <path d="M12 12H28M15 12V10C15 8.9 15.9 8 17 8H23C24.1 8 25 8.9 25 10V12M14 12V30C14 31.1 14.9 32 16 32H24C25.1 32 26 31.1 26 30V12" stroke="#ff7f50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="18" y1="18" x2="18" y2="26" stroke="#ff7f50" strokeWidth="2" strokeLinecap="round" />
+            <line x1="22" y1="18" x2="22" y2="26" stroke="#ff7f50" strokeWidth="2" strokeLinecap="round" />
+          </svg>
         </div>
 
       </footer>

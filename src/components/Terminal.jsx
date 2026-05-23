@@ -8,15 +8,94 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openTextEditor, triggerSystemAction }) {
-  const [history, setHistory] = useState([
-    { text: "Welcome to SunsetSH (Sunset OS Shell) v0.1", type: "system" },
-    { text: "Type 'help' to list available system commands.", type: "info" },
-    { text: "", type: "info" }
+  const [activeTab, setActiveTab] = useState(0);
+  const [terminalsState, setTerminalsState] = useState([
+    {
+      history: [
+        { text: "Welcome to SunsetSH (Sunset OS Shell) v0.1 — Terminal 1", type: "system" },
+        { text: "Type 'help' to list available system commands.", type: "info" },
+        { text: "", type: "info" }
+      ],
+      input: '',
+      cmdHistoryList: [],
+      cwd: ''
+    },
+    {
+      history: [
+        { text: "Welcome to SunsetSH (Sunset OS Shell) v0.1 — Terminal 2", type: "system" },
+        { text: "Type 'help' to list available system commands.", type: "info" },
+        { text: "", type: "info" }
+      ],
+      input: '',
+      cmdHistoryList: [],
+      cwd: ''
+    },
+    {
+      history: [
+        { text: "Welcome to SunsetSH (Sunset OS Shell) v0.1 — Terminal 3", type: "system" },
+        { text: "Type 'help' to list available system commands.", type: "info" },
+        { text: "", type: "info" }
+      ],
+      input: '',
+      cmdHistoryList: [],
+      cwd: ''
+    }
   ]);
-  const [input, setInput] = useState('');
   const [isMatrixActive, setIsMatrixActive] = useState(false);
-  const [cmdHistoryList, setCmdHistoryList] = useState([]);
-  const [cwd, setCwd] = useState('');
+
+  const activeTerm = terminalsState[activeTab];
+  const history = activeTerm.history;
+  const input = activeTerm.input;
+  const cmdHistoryList = activeTerm.cmdHistoryList;
+  const cwd = activeTerm.cwd;
+
+  const setHistory = (valOrFn) => {
+    setTerminalsState(prev => {
+      const next = [...prev];
+      const current = next[activeTab];
+      next[activeTab] = {
+        ...current,
+        history: typeof valOrFn === 'function' ? valOrFn(current.history) : valOrFn
+      };
+      return next;
+    });
+  };
+
+  const setInput = (valOrFn) => {
+    setTerminalsState(prev => {
+      const next = [...prev];
+      const current = next[activeTab];
+      next[activeTab] = {
+        ...current,
+        input: typeof valOrFn === 'function' ? valOrFn(current.input) : valOrFn
+      };
+      return next;
+    });
+  };
+
+  const setCwd = (valOrFn) => {
+    setTerminalsState(prev => {
+      const next = [...prev];
+      const current = next[activeTab];
+      next[activeTab] = {
+        ...current,
+        cwd: typeof valOrFn === 'function' ? valOrFn(current.cwd) : valOrFn
+      };
+      return next;
+    });
+  };
+
+  const setCmdHistoryList = (valOrFn) => {
+    setTerminalsState(prev => {
+      const next = [...prev];
+      const current = next[activeTab];
+      next[activeTab] = {
+        ...current,
+        cmdHistoryList: typeof valOrFn === 'function' ? valOrFn(current.cmdHistoryList) : valOrFn
+      };
+      return next;
+    });
+  };
   const terminalEndRef = useRef(null);
 
   // Auto scroll to bottom of logs
@@ -826,6 +905,23 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
 
   return (
     <div className="flex flex-col h-full bg-slate-950/80 text-emerald-400 font-mono text-xs p-4 selection:bg-emerald-500/20 leading-relaxed relative">
+      
+      {/* Tab Selection Header Bar */}
+      <div className="flex items-center gap-1 bg-black/45 p-1 rounded-lg border border-white/5 mb-3 select-none">
+        {[0, 1, 2].map((idx) => (
+          <button
+            key={idx}
+            onClick={() => setActiveTab(idx)}
+            className={`flex-1 py-1.5 px-2 text-center rounded-md font-mono text-[10px] tracking-wider uppercase transition-all duration-300 ${
+              activeTab === idx
+                ? 'bg-gradient-to-r from-orange-500/20 to-rose-500/20 text-orange-300 font-bold border border-orange-500/30 shadow-[0_0_8px_rgba(249,115,22,0.25)]'
+                : 'text-white/40 hover:text-white/80 hover:bg-white/5 border border-transparent'
+            }`}
+          >
+            Terminal {idx + 1}
+          </button>
+        ))}
+      </div>
       
       {/* Matrix diagnostic overlay */}
       {isMatrixActive ? (

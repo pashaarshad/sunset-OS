@@ -27,9 +27,9 @@ if (-not (Get-Command gcc -ErrorAction SilentlyContinue)) {
     Exit 1
 }
 
-# 4. Assemble the Boot Sector (bootloader/bootloader.asm)
-Write-Host 'Assembling bootloader/bootloader.asm...' -ForegroundColor Cyan
-nasm -f bin bootloader/bootloader.asm -o build/bootloader.bin
+# 4. Assemble the Boot Sector (boot/bootloader.asm)
+Write-Host 'Assembling boot/bootloader.asm...' -ForegroundColor Cyan
+nasm -f bin boot/bootloader.asm -o build/bootloader.bin
 if ($LASTEXITCODE -ne 0) {
     Write-Error 'Failed to assemble bootloader.asm.'
     Exit 1
@@ -45,9 +45,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host 'Kernel entry stub assembled successfully!' -ForegroundColor Green
 
-# 4.6 Assemble Interrupt Service Routine Stubs (kernel/scheduler/interrupt.asm)
-Write-Host 'Assembling kernel/scheduler/interrupt.asm...' -ForegroundColor Cyan
-nasm -f win32 kernel/scheduler/interrupt.asm -o build/interrupt.o
+# 4.6 Assemble Interrupt Service Routine Stubs (kernel/interrupts/interrupt.asm)
+Write-Host 'Assembling kernel/interrupts/interrupt.asm...' -ForegroundColor Cyan
+nasm -f win32 kernel/interrupts/interrupt.asm -o build/interrupt.o
 if ($LASTEXITCODE -ne 0) {
     Write-Error 'Failed to assemble interrupt.asm.'
     Exit 1
@@ -60,17 +60,17 @@ Write-Host 'Compiling C Kernel modular source files...' -ForegroundColor Cyan
 # Define mapping of module names to their new relative source paths
 $modules = @{
     'memory'    = 'kernel/memory/memory.c'
-    'graphics'  = 'kernel/graphics/graphics.c'
-    'font'      = 'kernel/graphics/font.c'
-    'vfs'       = 'kernel/core/vfs.c'
-    'window'    = 'kernel/graphics/window.c'
-    'garden'    = 'kernel/graphics/garden.c'
-    'mouse'     = 'kernel/drivers/mouse.c'
-    'sound'     = 'kernel/drivers/sound.c'
-    'net'       = 'kernel/drivers/net.c'
-    'idt'       = 'kernel/scheduler/idt.c'
+    'graphics'  = 'graphics/framebuffer/graphics.c'
+    'font'      = 'graphics/font/font.c'
+    'vfs'       = 'filesystem/vfs/vfs.c'
+    'window'    = 'graphics/window_manager/window.c'
+    'garden'    = 'graphics/garden/garden.c'
+    'mouse'     = 'drivers/mouse/mouse.c'
+    'sound'     = 'drivers/sound/sound.c'
+    'net'       = 'drivers/net/net.c'
+    'idt'       = 'kernel/interrupts/idt.c'
     'scheduler' = 'kernel/scheduler/scheduler.c'
-    'rtc'       = 'kernel/drivers/rtc.c'
+    'rtc'       = 'drivers/rtc/rtc.c'
     'kernel'    = 'kernel/core/kernel.c'
 }
 
@@ -80,7 +80,12 @@ $objFiles = @()
 foreach ($module in $moduleOrder) {
     $srcPath = $modules[$module]
     Write-Host "Compiling ${srcPath}..." -ForegroundColor Gray
-    gcc -m32 -ffreestanding -Ikernel/core -Ikernel/memory -Ikernel/graphics -Ikernel/drivers -Ikernel/scheduler -c $srcPath -o "build/${module}.o"
+    gcc -m32 -ffreestanding `
+        -Ikernel/core -Ikernel/memory -Ikernel/scheduler -Ikernel/interrupts `
+        -Idrivers/mouse -Idrivers/sound -Idrivers/net -Idrivers/rtc `
+        -Ifilesystem/vfs -Igraphics/framebuffer -Igraphics/window_manager `
+        -Igraphics/font -Igraphics/garden `
+        -c $srcPath -o "build/${module}.o"
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to compile ${srcPath}"
         Exit 1
@@ -128,7 +133,7 @@ try {
     [System.IO.File]::WriteAllBytes('build/sunset_os.img', $combinedBytes)
     Write-Host 'Sunset OS image created successfully: build/sunset_os.img (1.44MB floppy size)!' -ForegroundColor Green
 } catch {
-    Write-Error 'Failed to merge and pad binaries into floppy image.'
+    Write-Error "Failed to merge and pad binaries into floppy image: $_"
     Exit 1
 }
 

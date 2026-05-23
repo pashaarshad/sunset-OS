@@ -16,11 +16,12 @@
 #include "window.h"
 #include "sound.h"
 #include "net.h"
-#include "../scheduler/idt.h"
-#include "../scheduler/scheduler.h"
+#include "idt.h"
+#include "scheduler.h"
 #include "garden.h"
 #include "vfs.h"
-#include "../drivers/rtc.h"
+#include "rtc.h"
+
 
 // Scancode to US Keyboard ASCII mapping array (32-bit flat compatible)
 static const char scancode_to_ascii[] = {
@@ -486,6 +487,23 @@ static void delay(int count) {
 void kernel_main(unsigned int* vesa_framebuffer) {
     // 1. Initialize Memory safety layers first
     init_memory();
+
+    // Verify heap allocator integrity via active memory self-test (coalescing + splitting)
+    void* test1 = kmalloc(128);
+    void* test2 = kmalloc(256);
+    void* test3 = kmalloc(64);
+    if (test1 == 0 || test2 == 0 || test3 == 0) {
+        kpanic("Memory Self-Test Failed: kmalloc returned NULL");
+    }
+    kfree(test1);
+    kfree(test2);
+    kfree(test3);
+    // If coalescing is correct, a new block of 380 bytes must fit in the merged space!
+    void* test4 = kmalloc(380);
+    if (test4 == 0) {
+        kpanic("Memory Self-Test Failed: Coalescing failed to merge adjacent free blocks");
+    }
+    kfree(test4);
 
     // Initialize Network stack configuration
     init_net();
@@ -1251,19 +1269,150 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 draw_window(&win_diag);
             }
 
-            // 5. Draw visual bottom desktop Taskbar (Charcoal-purple bar)
-            draw_rect(0, 560, 800, 40, 22, 18, 25);
-            draw_rect(0, 558, 800, 2, 255, 255, 255); // Top glow line
+            // 5. Draw visual bottom desktop floating DOCK & status widgets
             
-            draw_string("🌅 Sunset OS v0.5", 20, 574, 227, 133, 53);
-            draw_string("Mode: VESA 800x600x24", 230, 574, 245, 235, 230);
-            draw_string("Kernel: Ring 0 Core", 460, 574, 120, 220, 160);
+            // A. Left Frosted Status tag
+            draw_rect(20, 547, 120, 38, 22, 18, 25);
+            draw_rect_outline(19, 546, 122, 40, 255, 255, 255);
+            draw_string("🌅 Sunset OS", 32, 560, 227, 133, 53);
             
+            // B. Centered floating Dock container (Centered at x = 160, width = 480, height = 44)
+            draw_rect(160, 545, 480, 44, 28, 14, 28); // Translucent Dark Purple
+            draw_rect_outline(159, 544, 482, 46, 227, 133, 53); // Glowing gold borders
+            
+            // C. Draw floating Dock icons (2D compositions inside VESA frame buffer)
+            
+            // Item 1: Sunset Menu Sun (x = 180)
+            draw_rect(180, 555, 24, 24, 227, 133, 53);
+            draw_rect(190, 551, 4, 3, 255, 215, 0); // Ray top
+            
+            // Item 2: Shell Console (x = 235)
+            draw_rect(235, 555, 24, 24, 20, 20, 20);
+            draw_pixel(241, 562, 46, 204, 113); // Green chevron >
+            draw_pixel(242, 563, 46, 204, 113);
+            draw_pixel(243, 564, 46, 204, 113);
+            draw_pixel(242, 565, 46, 204, 113);
+            draw_pixel(241, 566, 46, 204, 113);
+            draw_rect(245, 568, 6, 2, 46, 204, 113); // Underline prompt
+            
+            // Item 3: File Manager Folder (x = 290)
+            draw_rect(290, 555, 24, 24, 230, 126, 34);
+            draw_rect(290, 552, 12, 4, 241, 196, 15); // Folder back flap
+            
+            // Item 4: Calm Notes writing pad (x = 345)
+            draw_rect(345, 555, 24, 24, 255, 255, 255);
+            draw_rect(350, 560, 14, 2, 230, 126, 34); // Pencil lines
+            draw_rect(350, 565, 14, 2, 230, 126, 34);
+            draw_rect(350, 570, 10, 2, 230, 126, 34);
+            
+            // Item 5: Zen Garden (x = 400)
+            draw_rect(400, 555, 24, 24, 245, 150, 180); // Sakura pink card
+            draw_rect(410, 563, 4, 4, 255, 255, 255); // Star center
+            
+            // Item 6: Calendar (x = 455)
+            draw_rect(455, 555, 24, 24, 52, 152, 219); // Calendar blue
+            draw_rect(455, 555, 24, 6, 231, 76, 60); // Red top
+            
+            // Item 7: Diagnostics Info (x = 510)
+            draw_rect(510, 555, 24, 24, 155, 89, 182); // Indigo card
+            draw_rect(521, 560, 2, 2, 255, 255, 255); // letter i dot
+            draw_rect(521, 564, 2, 8, 255, 255, 255); // letter i body
+            
+            // Item 8: Recycled Trash Bin (x = 565)
+            draw_rect(565, 555, 24, 24, 44, 62, 80); // Trash container slate
+            draw_rect(561, 553, 32, 2, 149, 165, 166); // Rim
+            
+            // D. Draw active indicator dots under running program windows
+            if (win_shell.active) {
+                draw_rect(245, 583, 4, 2, 46, 204, 113); // Green dot
+            }
+            if (win_notes.active) {
+                draw_rect(355, 583, 4, 2, 241, 196, 15); // Gold dot
+            }
+            if (show_garden && win_garden.active) {
+                draw_rect(410, 583, 4, 2, 245, 150, 180); // Pink dot
+            }
+            if (show_cal && win_cal.active) {
+                draw_rect(465, 583, 4, 2, 52, 152, 219); // Blue dot
+            }
+            if (win_diag.active) {
+                draw_rect(520, 583, 4, 2, 155, 89, 182); // Indigo dot
+            }
+            
+            // E. Right Frosted Clock tag
             char clock_buf[32];
             int h, m, s, dy, mo, yr;
             rtc_get_time(&h, &m, &s, &dy, &mo, &yr);
             format_time_string(h, m, s, clock_buf);
-            draw_string(clock_buf, 650, 574, 255, 255, 255);
+            draw_rect(660, 547, 120, 38, 22, 18, 25);
+            draw_rect_outline(659, 546, 122, 40, 255, 255, 255);
+            draw_string(clock_buf, 672, 560, 255, 255, 255);
+            
+            // F. Dock Mouse Click Handler with Simple Debounce
+            static char mouse_was_released = 1;
+            if (!mouse_left_clicked) {
+                mouse_was_released = 1;
+            }
+            if (mouse_left_clicked && mouse_was_released) {
+                if (mouse_y >= 545 && mouse_y <= 589) {
+                    if (mouse_x >= 180 && mouse_x <= 204) {
+                        play_startup_chime();
+                        mouse_was_released = 0;
+                    } else if (mouse_x >= 235 && mouse_x <= 259) {
+                        win_shell.active = 1;
+                        win_diag.active = 0;
+                        win_notes.active = 0;
+                        win_garden.active = 0;
+                        win_cal.active = 0;
+                        mouse_was_released = 0;
+                    } else if (mouse_x >= 290 && mouse_x <= 314) {
+                        // File Manager folder click tone
+                        play_tone(660); sleep_ms(80); stop_tone();
+                        mouse_was_released = 0;
+                    } else if (mouse_x >= 345 && mouse_x <= 369) {
+                        win_notes.active = 1;
+                        win_diag.active = 0;
+                        win_shell.active = 0;
+                        win_garden.active = 0;
+                        win_cal.active = 0;
+                        mouse_was_released = 0;
+                    } else if (mouse_x >= 400 && mouse_x <= 424) {
+                        show_garden = !show_garden;
+                        if (show_garden) {
+                            win_garden.active = 1;
+                            win_diag.active = 0;
+                            win_notes.active = 0;
+                            win_shell.active = 0;
+                            win_cal.active = 0;
+                            draw_garden_content(garden_buffer);
+                        }
+                        mouse_was_released = 0;
+                    } else if (mouse_x >= 455 && mouse_x <= 479) {
+                        show_cal = !show_cal;
+                        if (show_cal) {
+                            win_cal.active = 1;
+                            win_diag.active = 0;
+                            win_notes.active = 0;
+                            win_shell.active = 0;
+                            win_garden.active = 0;
+                        }
+                        mouse_was_released = 0;
+                    } else if (mouse_x >= 510 && mouse_x <= 534) {
+                        win_diag.active = 1;
+                        win_notes.active = 0;
+                        win_shell.active = 0;
+                        win_garden.active = 0;
+                        win_cal.active = 0;
+                        mouse_was_released = 0;
+                    } else if (mouse_x >= 565 && mouse_x <= 589) {
+                        // Empty Trash arpeggio chimes
+                        play_tone(880); sleep_ms(100);
+                        play_tone(1046); sleep_ms(150);
+                        stop_tone();
+                        mouse_was_released = 0;
+                    }
+                }
+            }
 
             // 6. Plot mouse pointer overlay on top of everything
             draw_mouse_pointer();
