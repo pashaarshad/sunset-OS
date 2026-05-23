@@ -37,6 +37,22 @@ export default function App() {
     voiceassistant: true, // Voice Assistant open by default for helpfulness
     browser: false
   });
+  const [minimizedApps, setMinimizedApps] = useState({
+    filemanager: false,
+    texteditor: false,
+    mediasuite: false,
+    terminal: false,
+    voiceassistant: false,
+    browser: false
+  });
+  const [maximizedApps, setMaximizedApps] = useState({
+    filemanager: false,
+    texteditor: false,
+    mediasuite: false,
+    terminal: false,
+    voiceassistant: false,
+    browser: false
+  });
   const [browserUrl, setBrowserUrl] = useState('sunset://gardens');
 
   const [activeApp, setActiveApp] = useState('voiceassistant');
@@ -158,6 +174,7 @@ export default function App() {
   // 7. Window management utilities
   const openApp = (appName, additionalState = null) => {
     setOpenApps(prev => ({ ...prev, [appName]: true }));
+    setMinimizedApps(prev => ({ ...prev, [appName]: false }));
     setActiveApp(appName);
     if (appName === 'texteditor' && additionalState) {
       setSelectedFileId(additionalState);
@@ -169,16 +186,49 @@ export default function App() {
   };
 
   const closeApp = (appName, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     setOpenApps(prev => ({ ...prev, [appName]: false }));
+    setMinimizedApps(prev => ({ ...prev, [appName]: false }));
+    setMaximizedApps(prev => ({ ...prev, [appName]: false }));
+  };
+
+  const minimizeApp = (appName, e) => {
+    if (e) e.stopPropagation();
+    setMinimizedApps(prev => ({ ...prev, [appName]: true }));
+  };
+
+  const toggleMaximizeApp = (appName, e) => {
+    if (e) e.stopPropagation();
+    setMaximizedApps(prev => ({ ...prev, [appName]: !prev[appName] }));
+  };
+
+  const handleDockIconClick = (appName, additionalState = null) => {
+    if (!openApps[appName]) {
+      openApp(appName, additionalState);
+    } else if (minimizedApps[appName]) {
+      setMinimizedApps(prev => ({ ...prev, [appName]: false }));
+      setActiveApp(appName);
+      if (appName === 'mediasuite' && additionalState) {
+        setMediaSuiteTab(additionalState.tab);
+      }
+    } else if (activeApp !== appName) {
+      setActiveApp(appName);
+      if (appName === 'mediasuite' && additionalState) {
+        setMediaSuiteTab(additionalState.tab);
+      }
+    } else {
+      setMinimizedApps(prev => ({ ...prev, [appName]: true }));
+    }
   };
 
   const bringToFront = (appName) => {
+    if (minimizedApps[appName]) return;
     setActiveApp(appName);
   };
 
   // Drag listeners
   const startDrag = (appName, e) => {
+    if (maximizedApps[appName]) return; // Disable drag if maximized
     bringToFront(appName);
     setActiveDragApp(appName);
     setDragOffset({
@@ -450,15 +500,24 @@ export default function App() {
         {/* 1. FILE EXPLORER APP */}
         {openApps.filemanager && (
           <div 
-            className={`app-window glass-panel w-[500px] h-[360px] ${activeApp === 'filemanager' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
-            style={{ left: `${winPositions.filemanager.x}px`, top: `${winPositions.filemanager.y}px` }}
+            className={`app-window glass-panel ${activeApp === 'filemanager' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
+            style={{ 
+              left: maximizedApps.filemanager ? '0px' : `${winPositions.filemanager.x}px`, 
+              top: maximizedApps.filemanager ? '0px' : `${winPositions.filemanager.y}px`,
+              width: maximizedApps.filemanager ? '100vw' : '500px',
+              height: maximizedApps.filemanager ? 'calc(100vh - 88px)' : '360px',
+              opacity: minimizedApps.filemanager ? 0 : 1,
+              transform: minimizedApps.filemanager ? 'scale(0.95) translateY(20px)' : 'scale(1) translateY(0)',
+              pointerEvents: minimizedApps.filemanager ? 'none' : 'auto',
+              display: openApps.filemanager ? 'flex' : 'none'
+            }}
             onClick={() => bringToFront('filemanager')}
           >
             <div className="window-header" onMouseDown={(e) => startDrag('filemanager', e)}>
               <span className="window-title text-amber-300"><Folder className="w-4 h-4" /> File Explorer</span>
               <div className="window-actions">
-                <button className="window-action-btn window-btn-minimize" />
-                <button className="window-action-btn window-btn-maximize" />
+                <button className="window-action-btn window-btn-minimize" onClick={(e) => minimizeApp('filemanager', e)} />
+                <button className="window-action-btn window-btn-maximize" onClick={(e) => toggleMaximizeApp('filemanager', e)} />
                 <button className="window-action-btn window-btn-close" onClick={(e) => closeApp('filemanager', e)} />
               </div>
             </div>
@@ -474,15 +533,24 @@ export default function App() {
         {/* 2. TEXT EDITOR APP */}
         {openApps.texteditor && (
           <div 
-            className={`app-window glass-panel w-[460px] h-[340px] ${activeApp === 'texteditor' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
-            style={{ left: `${winPositions.texteditor.x}px`, top: `${winPositions.texteditor.y}px` }}
+            className={`app-window glass-panel ${activeApp === 'texteditor' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
+            style={{ 
+              left: maximizedApps.texteditor ? '0px' : `${winPositions.texteditor.x}px`, 
+              top: maximizedApps.texteditor ? '0px' : `${winPositions.texteditor.y}px`,
+              width: maximizedApps.texteditor ? '100vw' : '460px',
+              height: maximizedApps.texteditor ? 'calc(100vh - 88px)' : '340px',
+              opacity: minimizedApps.texteditor ? 0 : 1,
+              transform: minimizedApps.texteditor ? 'scale(0.95) translateY(20px)' : 'scale(1) translateY(0)',
+              pointerEvents: minimizedApps.texteditor ? 'none' : 'auto',
+              display: openApps.texteditor ? 'flex' : 'none'
+            }}
             onClick={() => bringToFront('texteditor')}
           >
             <div className="window-header" onMouseDown={(e) => startDrag('texteditor', e)}>
               <span className="window-title text-orange-400"><FileText className="w-4 h-4" /> Text Editor</span>
               <div className="window-actions">
-                <button className="window-action-btn window-btn-minimize" />
-                <button className="window-action-btn window-btn-maximize" />
+                <button className="window-action-btn window-btn-minimize" onClick={(e) => minimizeApp('texteditor', e)} />
+                <button className="window-action-btn window-btn-maximize" onClick={(e) => toggleMaximizeApp('texteditor', e)} />
                 <button className="window-action-btn window-btn-close" onClick={(e) => closeApp('texteditor', e)} />
               </div>
             </div>
@@ -495,15 +563,24 @@ export default function App() {
         {/* 3. MEDIA SUITE APP */}
         {openApps.mediasuite && (
           <div 
-            className={`app-window glass-panel w-[500px] h-[340px] ${activeApp === 'mediasuite' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
-            style={{ left: `${winPositions.mediasuite.x}px`, top: `${winPositions.mediasuite.y}px` }}
+            className={`app-window glass-panel ${activeApp === 'mediasuite' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
+            style={{ 
+              left: maximizedApps.mediasuite ? '0px' : `${winPositions.mediasuite.x}px`, 
+              top: maximizedApps.mediasuite ? '0px' : `${winPositions.mediasuite.y}px`,
+              width: maximizedApps.mediasuite ? '100vw' : '500px',
+              height: maximizedApps.mediasuite ? 'calc(100vh - 88px)' : '340px',
+              opacity: minimizedApps.mediasuite ? 0 : 1,
+              transform: minimizedApps.mediasuite ? 'scale(0.95) translateY(20px)' : 'scale(1) translateY(0)',
+              pointerEvents: minimizedApps.mediasuite ? 'none' : 'auto',
+              display: openApps.mediasuite ? 'flex' : 'none'
+            }}
             onClick={() => bringToFront('mediasuite')}
           >
             <div className="window-header" onMouseDown={(e) => startDrag('mediasuite', e)}>
               <span className="window-title text-pink-400"><Music className="w-4 h-4" /> Media Suite</span>
               <div className="window-actions">
-                <button className="window-action-btn window-btn-minimize" />
-                <button className="window-action-btn window-btn-maximize" />
+                <button className="window-action-btn window-btn-minimize" onClick={(e) => minimizeApp('mediasuite', e)} />
+                <button className="window-action-btn window-btn-maximize" onClick={(e) => toggleMaximizeApp('mediasuite', e)} />
                 <button className="window-action-btn window-btn-close" onClick={(e) => closeApp('mediasuite', e)} />
               </div>
             </div>
@@ -516,15 +593,24 @@ export default function App() {
         {/* 4. TERMINAL SHELL APP */}
         {openApps.terminal && (
           <div 
-            className={`app-window glass-panel w-[460px] h-[320px] ${activeApp === 'terminal' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
-            style={{ left: `${winPositions.terminal.x}px`, top: `${winPositions.terminal.y}px` }}
+            className={`app-window glass-panel ${activeApp === 'terminal' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
+            style={{ 
+              left: maximizedApps.terminal ? '0px' : `${winPositions.terminal.x}px`, 
+              top: maximizedApps.terminal ? '0px' : `${winPositions.terminal.y}px`,
+              width: maximizedApps.terminal ? '100vw' : '460px',
+              height: maximizedApps.terminal ? 'calc(100vh - 88px)' : '320px',
+              opacity: minimizedApps.terminal ? 0 : 1,
+              transform: minimizedApps.terminal ? 'scale(0.95) translateY(20px)' : 'scale(1) translateY(0)',
+              pointerEvents: minimizedApps.terminal ? 'none' : 'auto',
+              display: openApps.terminal ? 'flex' : 'none'
+            }}
             onClick={() => bringToFront('terminal')}
           >
             <div className="window-header" onMouseDown={(e) => startDrag('terminal', e)}>
               <span className="window-title text-emerald-400"><TermIcon className="w-4 h-4" /> Sunset Shell</span>
               <div className="window-actions">
-                <button className="window-action-btn window-btn-minimize" />
-                <button className="window-action-btn window-btn-maximize" />
+                <button className="window-action-btn window-btn-minimize" onClick={(e) => minimizeApp('terminal', e)} />
+                <button className="window-action-btn window-btn-maximize" onClick={(e) => toggleMaximizeApp('terminal', e)} />
                 <button className="window-action-btn window-btn-close" onClick={(e) => closeApp('terminal', e)} />
               </div>
             </div>
@@ -542,15 +628,24 @@ export default function App() {
         {/* 5. GHUROOB VOICE AI ASSISTANT APP */}
         {openApps.voiceassistant && (
           <div 
-            className={`app-window glass-panel w-[320px] h-[390px] ${activeApp === 'voiceassistant' ? 'z-45 ring-1 ring-orange-500/20' : 'z-20'}`}
-            style={{ left: `${winPositions.voiceassistant.x}px`, top: `${winPositions.voiceassistant.y}px` }}
+            className={`app-window glass-panel ${activeApp === 'voiceassistant' ? 'z-45 ring-1 ring-orange-500/20' : 'z-20'}`}
+            style={{ 
+              left: maximizedApps.voiceassistant ? '0px' : `${winPositions.voiceassistant.x}px`, 
+              top: maximizedApps.voiceassistant ? '0px' : `${winPositions.voiceassistant.y}px`,
+              width: maximizedApps.voiceassistant ? '100vw' : '320px',
+              height: maximizedApps.voiceassistant ? 'calc(100vh - 88px)' : '390px',
+              opacity: minimizedApps.voiceassistant ? 0 : 1,
+              transform: minimizedApps.voiceassistant ? 'scale(0.95) translateY(20px)' : 'scale(1) translateY(0)',
+              pointerEvents: minimizedApps.voiceassistant ? 'none' : 'auto',
+              display: openApps.voiceassistant ? 'flex' : 'none'
+            }}
             onClick={() => bringToFront('voiceassistant')}
           >
             <div className="window-header" onMouseDown={(e) => startDrag('voiceassistant', e)}>
               <span className="window-title text-orange-300"><Sparkles className="w-4 h-4" /> Ghuroob Assistant</span>
               <div className="window-actions">
-                <button className="window-action-btn window-btn-minimize" />
-                <button className="window-action-btn window-btn-maximize" />
+                <button className="window-action-btn window-btn-minimize" onClick={(e) => minimizeApp('voiceassistant', e)} />
+                <button className="window-action-btn window-btn-maximize" onClick={(e) => toggleMaximizeApp('voiceassistant', e)} />
                 <button className="window-action-btn window-btn-close" onClick={(e) => closeApp('voiceassistant', e)} />
               </div>
             </div>
@@ -563,15 +658,24 @@ export default function App() {
         {/* 6. ZEN WEB BROWSER APP */}
         {openApps.browser && (
           <div 
-            className={`app-window glass-panel w-[580px] h-[410px] ${activeApp === 'browser' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
-            style={{ left: `${winPositions.browser.x}px`, top: `${winPositions.browser.y}px` }}
+            className={`app-window glass-panel ${activeApp === 'browser' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
+            style={{ 
+              left: maximizedApps.browser ? '0px' : `${winPositions.browser.x}px`, 
+              top: maximizedApps.browser ? '0px' : `${winPositions.browser.y}px`,
+              width: maximizedApps.browser ? '100vw' : '580px',
+              height: maximizedApps.browser ? 'calc(100vh - 88px)' : '410px',
+              opacity: minimizedApps.browser ? 0 : 1,
+              transform: minimizedApps.browser ? 'scale(0.95) translateY(20px)' : 'scale(1) translateY(0)',
+              pointerEvents: minimizedApps.browser ? 'none' : 'auto',
+              display: openApps.browser ? 'flex' : 'none'
+            }}
             onClick={() => bringToFront('browser')}
           >
             <div className="window-header" onMouseDown={(e) => startDrag('browser', e)}>
               <span className="window-title text-blue-300"><Globe className="w-4 h-4" /> Zen Browser</span>
               <div className="window-actions">
-                <button className="window-action-btn window-btn-minimize" />
-                <button className="window-action-btn window-btn-maximize" />
+                <button className="window-action-btn window-btn-minimize" onClick={(e) => minimizeApp('browser', e)} />
+                <button className="window-action-btn window-btn-maximize" onClick={(e) => toggleMaximizeApp('browser', e)} />
                 <button className="window-action-btn window-btn-close" onClick={(e) => closeApp('browser', e)} />
               </div>
             </div>
@@ -726,7 +830,7 @@ export default function App() {
 
         {/* Item 2: Shell Console */}
         <div 
-          onClick={() => openApp('terminal')}
+          onClick={() => handleDockIconClick('terminal')}
           className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
           title="Terminal Shell"
         >
@@ -740,7 +844,7 @@ export default function App() {
 
         {/* Item 3: File Manager */}
         <div 
-          onClick={() => openApp('filemanager')}
+          onClick={() => handleDockIconClick('filemanager')}
           className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
           title="File Manager"
         >
@@ -759,7 +863,7 @@ export default function App() {
 
         {/* Item 4: Text Editor */}
         <div 
-          onClick={() => openApp('texteditor')}
+          onClick={() => handleDockIconClick('texteditor')}
           className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
           title="Text Editor"
         >
@@ -775,7 +879,7 @@ export default function App() {
 
         {/* Item 5: Music / Media Suite Audio */}
         <div 
-          onClick={() => openApp('mediasuite', { tab: 'audio' })}
+          onClick={() => handleDockIconClick('mediasuite', { tab: 'audio' })}
           className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
           title="Music Suite"
         >
@@ -803,7 +907,7 @@ export default function App() {
 
         {/* Item 7: Photos / Media Suite Image */}
         <div 
-          onClick={() => openApp('mediasuite', { tab: 'image' })}
+          onClick={() => handleDockIconClick('mediasuite', { tab: 'image' })}
           className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
           title="Gallery Suite"
         >

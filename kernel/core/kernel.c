@@ -346,7 +346,8 @@ static void build_prompt(char* out) {
 }
 
 static int get_prompt_len() {
-    return 17 + mystrlen(cwd);
+    // "ghuroob@sunset:/" = 16 chars + "$ " = 2 chars = 18 total
+    return 18 + mystrlen(cwd);
 }
 
 static void append_prompt_to_shell() {
@@ -816,14 +817,28 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                 }
             } else if (ascii == '\n') {
                 // Extract typed command
-                char cmd[128];
+                char cmd_raw[128];
                 int cmd_idx = 0;
                 int last_prompt = find_last_prompt_pos();
                 int cmd_start = last_prompt + get_prompt_len();
                 for (int k = cmd_start; k < shell_len && cmd_idx < 120; k++) {
-                    cmd[cmd_idx++] = shell_buffer[k];
+                    cmd_raw[cmd_idx++] = shell_buffer[k];
                 }
-                cmd[cmd_idx] = '\0';
+                cmd_raw[cmd_idx] = '\0';
+                
+                // Strip leading and trailing whitespace for robust matching
+                char cmd[128];
+                int si = 0, di = 0;
+                while (cmd_raw[si] == ' ' || cmd_raw[si] == '\t') si++;
+                while (cmd_raw[si] != '\0' && di < 126) {
+                    cmd[di++] = cmd_raw[si++];
+                }
+                cmd[di] = '\0';
+                // Strip trailing spaces
+                while (di > 0 && (cmd[di-1] == ' ' || cmd[di-1] == '\t')) {
+                    cmd[--di] = '\0';
+                }
+                cmd_idx = di;
 
                 // Save non-empty commands to history log
                 if (cmd_idx > 0 && cmd_idx < 30) {
@@ -1613,37 +1628,71 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         play_startup_chime();
                         mouse_was_released = 0;
                     } else if (mouse_x >= 235 && mouse_x <= 259) {
-                        win_shell.active = 1;
-                        win_diag.active = 0;
-                        win_notes.active = 0;
-                        win_garden.active = 0;
-                        win_cal.active = 0;
+                        if (win_shell.active && !win_shell.minimized) {
+                            win_shell.minimized = 1;
+                            win_shell.active = 0;
+                        } else {
+                            win_shell.minimized = 0;
+                            win_shell.active = 1;
+                            win_diag.active = 0;
+                            win_notes.active = 0;
+                            win_garden.active = 0;
+                            win_cal.active = 0;
+                        }
                         mouse_was_released = 0;
                     } else if (mouse_x >= 290 && mouse_x <= 314) {
                         // File Manager folder click tone
                         play_tone(660); sleep_ms(80); stop_tone();
                         mouse_was_released = 0;
                     } else if (mouse_x >= 345 && mouse_x <= 369) {
-                        win_notes.active = 1;
-                        win_diag.active = 0;
-                        win_shell.active = 0;
-                        win_garden.active = 0;
-                        win_cal.active = 0;
+                        if (win_notes.active && !win_notes.minimized) {
+                            win_notes.minimized = 1;
+                            win_notes.active = 0;
+                        } else {
+                            win_notes.minimized = 0;
+                            win_notes.active = 1;
+                            win_diag.active = 0;
+                            win_shell.active = 0;
+                            win_garden.active = 0;
+                            win_cal.active = 0;
+                        }
                         mouse_was_released = 0;
                     } else if (mouse_x >= 400 && mouse_x <= 424) {
-                        show_garden = !show_garden;
-                        if (show_garden) {
+                        if (!show_garden) {
+                            show_garden = 1;
+                            win_garden.minimized = 0;
                             win_garden.active = 1;
                             win_diag.active = 0;
                             win_notes.active = 0;
                             win_shell.active = 0;
                             win_cal.active = 0;
                             draw_garden_content(garden_buffer);
+                        } else if (win_garden.active && !win_garden.minimized) {
+                            win_garden.minimized = 1;
+                            win_garden.active = 0;
+                        } else {
+                            win_garden.minimized = 0;
+                            win_garden.active = 1;
+                            win_diag.active = 0;
+                            win_notes.active = 0;
+                            win_shell.active = 0;
+                            win_cal.active = 0;
                         }
                         mouse_was_released = 0;
                     } else if (mouse_x >= 455 && mouse_x <= 479) {
-                        show_cal = !show_cal;
-                        if (show_cal) {
+                        if (!show_cal) {
+                            show_cal = 1;
+                            win_cal.minimized = 0;
+                            win_cal.active = 1;
+                            win_diag.active = 0;
+                            win_notes.active = 0;
+                            win_shell.active = 0;
+                            win_garden.active = 0;
+                        } else if (win_cal.active && !win_cal.minimized) {
+                            win_cal.minimized = 1;
+                            win_cal.active = 0;
+                        } else {
+                            win_cal.minimized = 0;
                             win_cal.active = 1;
                             win_diag.active = 0;
                             win_notes.active = 0;
@@ -1652,11 +1701,17 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                         }
                         mouse_was_released = 0;
                     } else if (mouse_x >= 510 && mouse_x <= 534) {
-                        win_diag.active = 1;
-                        win_notes.active = 0;
-                        win_shell.active = 0;
-                        win_garden.active = 0;
-                        win_cal.active = 0;
+                        if (win_diag.active && !win_diag.minimized) {
+                            win_diag.minimized = 1;
+                            win_diag.active = 0;
+                        } else {
+                            win_diag.minimized = 0;
+                            win_diag.active = 1;
+                            win_notes.active = 0;
+                            win_shell.active = 0;
+                            win_garden.active = 0;
+                            win_cal.active = 0;
+                        }
                         mouse_was_released = 0;
                     } else if (mouse_x >= 565 && mouse_x <= 589) {
                         // Empty Trash arpeggio chimes

@@ -32,9 +32,12 @@ void init_window(Window* win, int x, int y, int w, int h, const char* title, con
     win->drag_offset_x = 0;
     win->drag_offset_y = 0;
     win->active = 0;
+    win->minimized = 0;
 }
 
 void draw_window(Window* win) {
+    if (win->minimized) return;
+
     int is_shell = (win_strcmp(win->title, "Sunset Shell Interface") == 0);
     int tab_bar_h = is_shell ? 20 : 0;
 
@@ -95,12 +98,66 @@ void draw_window(Window* win) {
     // Draw double thin border lines around the inner terminal box
     draw_rect_outline(win->x + 5, body_top - 1, win->w - 10, body_h + 2, 210, 195, 185);
     
-    // 8. Write standard green/gold diagnostic console logs inside the window
-    draw_string(win->content, win->x + 12, body_top + 6, 40, 220, 120);
+    // 8. Render shell text with auto-scroll (show last N lines that fit)
+    if (win->content) {
+        int line_height = 10;
+        int text_x = win->x + 12;
+        int text_y_start = body_top + 6;
+        int max_visible_lines = (body_h - 12) / line_height;
+        
+        // Count total lines in content
+        const char* p = win->content;
+        int total_lines = 1;
+        while (*p) { if (*p == '\n') total_lines++; p++; }
+        
+        // Calculate how many lines to skip
+        int skip_lines = 0;
+        if (total_lines > max_visible_lines) {
+            skip_lines = total_lines - max_visible_lines;
+        }
+        
+        // Find starting position after skipping lines
+        const char* start = win->content;
+        int skipped = 0;
+        while (*start && skipped < skip_lines) {
+            if (*start == '\n') skipped++;
+            start++;
+        }
+        
+        // Render visible lines with character-level clipping
+        int cur_x = text_x;
+        int cur_y = text_y_start;
+        int max_x = win->x + win->w - 18;
+        int max_y = body_top + body_h - 4;
+        const char* c = start;
+        while (*c && cur_y < max_y) {
+            if (*c == '\n') {
+                cur_x = text_x;
+                cur_y += line_height;
+            } else {
+                if (cur_x < max_x) {
+                    draw_char(*c, cur_x, cur_y, 40, 220, 120);
+                    cur_x += 8;
+                }
+            }
+            c++;
+        }
+    }
 }
 
 void handle_window_dragging(Window* win, int mx, int my, char mouse_down) {
+    if (win->minimized) return;
+
     if (mouse_down) {
+        // Check if click is on the minimize button (orange circle: x = win->w - 30, width = 8, height = 8)
+        if (mx >= win->x + win->w - 30 && mx <= win->x + win->w - 22 &&
+            my >= win->y + 6 && my <= win->y + 14) {
+            win->minimized = 1;
+            win->active = 0;
+            win->is_dragging = 0;
+            return;
+        }
+
         if (!win->is_dragging) {
             // Drag triggers ONLY if the click originates inside the Title Bar (height = 22 pixels)
             if (mx >= win->x && mx <= (win->x + win->w) &&

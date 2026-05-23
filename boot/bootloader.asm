@@ -141,8 +141,8 @@ load_kernel:
     mov es, ax
     xor bx, bx
 
-    ; We want to read 320 sectors starting from LBA = 1 (Sector 2)
-    mov bp, 320                    ; BP will be our sector loop counter (read 320 sectors = 160KB headroom)
+    ; We want to read 600 sectors starting from LBA = 1 (Sector 2)
+    mov bp, 600                    ; BP will be our sector loop counter (read 600 sectors = 300KB headroom)
     mov word [CURRENT_LBA], 1     ; Start reading from LBA = 1 (Sector 2)
 
 .read_sector_loop:

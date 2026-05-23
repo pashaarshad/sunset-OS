@@ -17,6 +17,7 @@ typedef struct {
     int drag_offset_x;
     int drag_offset_y;
     char active;
+    char minimized;
 } Window;
 
 // Initialize window attributes
@@ -27,5 +28,8 @@ void draw_window(Window* win);
 
 // Process drag coordinate calculations and boundaries
 void handle_window_dragging(Window* win, int mx, int my, char mouse_down);
+
+// Handle title bar button clicks (minimize/close) — returns 1 if minimize clicked
+int handle_window_click(Window* win, int mx, int my);
 
 #endif
