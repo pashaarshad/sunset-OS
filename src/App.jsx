@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Terminal as TermIcon, Folder, FileText, Music, Sparkles, Sun, Moon, TreePine, 
   Cpu, HardDrive, Wifi, Volume2, Calendar, Clock, RefreshCw, Globe,
-  Monitor, Settings, Trash2
+  Monitor, Settings, Trash2, Gamepad2
 } from 'lucide-react';
 
 import FileManager from './components/FileManager';
@@ -11,6 +11,7 @@ import MediaSuite from './components/MediaSuite';
 import Terminal from './components/Terminal';
 import VoiceAssistant from './components/VoiceAssistant';
 import Browser from './components/Browser';
+import SunsetSurfer from './components/SunsetSurfer';
 
 import bgImage from './assets/sunset_bg.png';
 
@@ -34,8 +35,9 @@ export default function App() {
     texteditor: false,
     mediasuite: false,
     terminal: false,
-    voiceassistant: true, // Voice Assistant open by default for helpfulness
-    browser: false
+    voiceassistant: true,
+    browser: false,
+    game: false
   });
   const [minimizedApps, setMinimizedApps] = useState({
     filemanager: false,
@@ -43,7 +45,8 @@ export default function App() {
     mediasuite: false,
     terminal: false,
     voiceassistant: false,
-    browser: false
+    browser: false,
+    game: false
   });
   const [maximizedApps, setMaximizedApps] = useState({
     filemanager: false,
@@ -51,7 +54,8 @@ export default function App() {
     mediasuite: false,
     terminal: false,
     voiceassistant: false,
-    browser: false
+    browser: false,
+    game: false
   });
   const [browserUrl, setBrowserUrl] = useState('sunset://gardens');
 
@@ -66,7 +70,8 @@ export default function App() {
     mediasuite: { x: 180, y: 150 },
     terminal: { x: 120, y: 220 },
     voiceassistant: { x: 550, y: 90 },
-    browser: { x: 220, y: 120 }
+    browser: { x: 220, y: 120 },
+    game: { x: 150, y: 60 }
   });
 
   const [activeDragApp, setActiveDragApp] = useState(null);
@@ -277,6 +282,21 @@ export default function App() {
       case 'refresh_files':
         // VFS file manager reload is reactive via LocalStorage listeners
         break;
+      case 'open_file':
+        if (payload) {
+          const { type, id } = payload;
+          if (type === 'image' || type === 'audio' || type === 'video') {
+            openApp('mediasuite', { tab: type, id });
+          } else if (type === 'game') {
+            openApp('game');
+          } else {
+            openApp('texteditor', id);
+          }
+        }
+        break;
+      case 'open_game':
+        openApp('game');
+        break;
       default:
         console.log("Unhandled system trigger: ", action);
     }
@@ -461,6 +481,14 @@ export default function App() {
             <Globe className="w-8 h-8 text-blue-400 drop-shadow-md group-hover:scale-105 transition-transform" />
             <span className="text-[10px] font-semibold text-white/90 group-hover:text-orange-300">Zen Browser</span>
           </div>
+
+          <div 
+            onClick={() => openApp('game')}
+            className="flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl hover:bg-white/5 cursor-pointer text-center group transition-colors duration-200"
+          >
+            <Gamepad2 className="w-8 h-8 text-amber-400 drop-shadow-md group-hover:scale-105 transition-transform" />
+            <span className="text-[10px] font-semibold text-white/90 group-hover:text-orange-300">Sunset Surfer</span>
+          </div>
         </div>
 
         {/* 💡 PERSISTENT DESKTOP WIDGET */}
@@ -525,6 +553,7 @@ export default function App() {
               <FileManager 
                 openTextEditor={(id) => openApp('texteditor', id)}
                 openMediaSuite={(tab, id) => openApp('mediasuite', { tab, id })}
+                openGame={() => openApp('game')}
               />
             </div>
           </div>
@@ -681,6 +710,36 @@ export default function App() {
             </div>
             <div className="window-body">
               <Browser initialUrl={browserUrl} />
+            </div>
+          </div>
+        )}
+
+        {/* 7. SUNSET SURFER GAME APP */}
+        {openApps.game && (
+          <div 
+            className={`app-window glass-panel ${activeApp === 'game' ? 'z-40 ring-1 ring-orange-500/20' : 'z-20'}`}
+            style={{ 
+              left: maximizedApps.game ? '0px' : `${winPositions.game.x}px`, 
+              top: maximizedApps.game ? '0px' : `${winPositions.game.y}px`,
+              width: maximizedApps.game ? '100vw' : '560px',
+              height: maximizedApps.game ? 'calc(100vh - 88px)' : '380px',
+              opacity: minimizedApps.game ? 0 : 1,
+              transform: minimizedApps.game ? 'scale(0.95) translateY(20px)' : 'scale(1) translateY(0)',
+              pointerEvents: minimizedApps.game ? 'none' : 'auto',
+              display: openApps.game ? 'flex' : 'none'
+            }}
+            onClick={() => bringToFront('game')}
+          >
+            <div className="window-header" onMouseDown={(e) => startDrag('game', e)}>
+              <span className="window-title text-amber-400"><Gamepad2 className="w-4 h-4" /> Sunset Surfer</span>
+              <div className="window-actions">
+                <button className="window-action-btn window-btn-minimize" onClick={(e) => minimizeApp('game', e)} />
+                <button className="window-action-btn window-btn-maximize" onClick={(e) => toggleMaximizeApp('game', e)} />
+                <button className="window-action-btn window-btn-close" onClick={(e) => closeApp('game', e)} />
+              </div>
+            </div>
+            <div className="window-body">
+              <SunsetSurfer />
             </div>
           </div>
         )}
@@ -903,6 +962,30 @@ export default function App() {
             <circle cx="20" cy="20" r="5" fill="none" stroke="#ccc" strokeWidth="3" />
             <path d="M20 8V12M20 28V32M8 20H12M28 20H32M11.5 11.5L14.3 14.3M25.7 25.7L28.5 28.5M11.5 28.5L14.3 25.7M25.7 11.5L28.5 14.3" stroke="#ccc" strokeWidth="3" strokeLinecap="round" />
           </svg>
+        </div>
+
+        {/* Item 6.5: Sunset Surfer Game */}
+        <div 
+          onClick={() => handleDockIconClick('game')}
+          className="group relative w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-300"
+          title="Sunset Surfer Game"
+        >
+          <svg className="w-9 h-9 transition-transform duration-300 group-hover:scale-110" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="gameGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#e8651a" />
+                <stop offset="100%" stopColor="#ffb347" />
+              </linearGradient>
+            </defs>
+            <rect width="40" height="40" rx="10" fill="url(#gameGrad)" />
+            <rect x="8" y="14" width="24" height="14" rx="7" fill="rgba(0,0,0,0.3)" />
+            <circle cx="15" cy="21" r="3" fill="none" stroke="white" strokeWidth="1.5" />
+            <line x1="15" y1="18.5" x2="15" y2="23.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="12.5" y1="21" x2="17.5" y2="21" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="27" cy="19" r="2" fill="white" opacity="0.9" />
+            <circle cx="24" cy="22" r="2" fill="white" opacity="0.7" />
+          </svg>
+          {openApps.game && <span className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(255,179,71,0.8)]" />}
         </div>
 
         {/* Item 7: Photos / Media Suite Image */}

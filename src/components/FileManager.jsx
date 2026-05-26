@@ -4,7 +4,22 @@ import {
   ArrowLeft, Download, Home, Monitor, Info
 } from 'lucide-react';
 
-export default function FileManager({ openTextEditor, openMediaSuite }) {
+// Detect file type from extension for smart "Open With"
+function detectFileType(name) {
+  if (!name) return 'file';
+  const ext = name.split('.').pop().toLowerCase();
+  const imageExts = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'svg', 'ico'];
+  const audioExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'];
+  const videoExts = ['mp4', 'avi', 'mkv', 'webm', 'mov', 'wmv'];
+  const gameExts = ['game'];
+  if (imageExts.includes(ext)) return 'image';
+  if (audioExts.includes(ext)) return 'audio';
+  if (videoExts.includes(ext)) return 'video';
+  if (gameExts.includes(ext)) return 'game';
+  return 'file';
+}
+
+export default function FileManager({ openTextEditor, openMediaSuite, openGame }) {
   const [currentDir, setCurrentDir] = useState('root');
   const [items, setItems] = useState([]);
   const [newItemName, setNewItemName] = useState('');
@@ -37,7 +52,13 @@ export default function FileManager({ openTextEditor, openMediaSuite }) {
         { id: '10', name: 'calm_waves.mp4', type: 'video', parent: '4', content: 'Calming waves under a setting sun.' },
         
         { id: 'welcome_desk', name: 'welcome_sunset.txt', type: 'file', parent: 'desktop', content: 'Welcome to Sunset OS Desktop!\n\nThis is your tranquil workspace. Place files and folder short-cuts here.' },
+        { id: 'game_shortcut', name: 'SunsetSurfer.game', type: 'file', parent: 'desktop', content: 'Sunset Surfer Game Launcher' },
         { id: 'download_item', name: 'zen_wallpaper.png', type: 'image', parent: 'downloads', content: '/src/assets/sunset_bg.png' },
+        
+        // Extra wallpapers for gallery
+        { id: 'pic_tropical', name: 'tropical_sunset.png', type: 'image', parent: '2', content: '/src/assets/tropical_sunset.png' },
+        { id: 'pic_mountain', name: 'mountain_twilight.png', type: 'image', parent: '2', content: '/src/assets/mountain_twilight.png' },
+        { id: 'pic_ocean', name: 'ocean_waves.png', type: 'image', parent: '2', content: '/src/assets/ocean_waves.png' },
         
         // Nested project tree
         { id: 'proj_sunset', name: 'sunset-OS', type: 'folder', parent: 'projects' },
@@ -137,14 +158,20 @@ export default function FileManager({ openTextEditor, openMediaSuite }) {
     setEditingId(null);
   };
 
-  // 4. File Interaction
+  // 4. File Interaction — Smart "Open With" by extension
   const handleItemClick = (item) => {
     if (item.type === 'folder') {
       setCurrentDir(item.id);
-    } else if (item.type === 'file') {
+      return;
+    }
+    // Use extension-based detection for non-folder items
+    const detectedType = detectFileType(item.name);
+    if (detectedType === 'image' || detectedType === 'audio' || detectedType === 'video') {
+      openMediaSuite(detectedType, item.id);
+    } else if (detectedType === 'game') {
+      if (openGame) openGame();
+    } else {
       openTextEditor(item.id);
-    } else if (item.type === 'image' || item.type === 'audio' || item.type === 'video') {
-      openMediaSuite(item.type, item.id);
     }
   };
 

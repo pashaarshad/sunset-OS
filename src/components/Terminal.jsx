@@ -211,6 +211,9 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
           { text: "  note [msg]  - Append a formatted note into Calm Notes.", type: "text" },
           { text: "  lofi [1-3]  - Play distinct relaxing multi-note arpeggios.", type: "text" },
           { text: "  time        - Display current system date and time.", type: "text" },
+          { text: "  open [file] - Open a file in its associated app.", type: "text" },
+          { text: "  run [file]  - Run/execute a file by type.", type: "text" },
+          { text: "  game        - Launch Sunset Surfer game.", type: "text" },
           { text: "  clear       - Clear screen logs.", type: "text" }
         );
         playCmdChime(true);
@@ -1020,6 +1023,63 @@ export default function Terminal({ openVoiceAssistant, changeDesktopTheme, openT
         }
         break;
       }
+
+      case 'open':
+      case 'run': {
+        if (args.length === 0) {
+          newHistory.push({ text: `Usage: ${command} [filename]`, type: "error" });
+          newHistory.push({ text: "Opens a file in its associated application.", type: "info" });
+          playCmdChime(false);
+        } else {
+          const fileName = args.join(' ');
+          const vfs = getFilesList();
+          const parentId = getParentIdForCwd(cwd);
+          const target = vfs.find(i => i.name.toLowerCase() === fileName.toLowerCase() && i.parent === parentId);
+          if (target) {
+            // Detect type by extension
+            const ext = target.name.split('.').pop().toLowerCase();
+            const imageExts = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp'];
+            const audioExts = ['mp3', 'wav', 'ogg', 'flac'];
+            const videoExts = ['mp4', 'avi', 'mkv', 'webm'];
+            let fileType = 'file';
+            if (imageExts.includes(ext)) fileType = 'image';
+            else if (audioExts.includes(ext)) fileType = 'audio';
+            else if (videoExts.includes(ext)) fileType = 'video';
+            else if (ext === 'game') fileType = 'game';
+
+            if (fileType === 'game') {
+              newHistory.push({ text: `🎮 Launching Sunset Surfer...`, type: "success" });
+              if (triggerSystemAction) triggerSystemAction('open_game');
+            } else if (fileType === 'image') {
+              newHistory.push({ text: `🖼️  Opening ${target.name} in Gallery...`, type: "success" });
+              if (triggerSystemAction) triggerSystemAction('open_file', { type: 'image', id: target.id });
+            } else if (fileType === 'audio') {
+              newHistory.push({ text: `🎵 Opening ${target.name} in Music Player...`, type: "success" });
+              if (triggerSystemAction) triggerSystemAction('open_file', { type: 'audio', id: target.id });
+            } else if (fileType === 'video') {
+              newHistory.push({ text: `🎬 Opening ${target.name} in Video Player...`, type: "success" });
+              if (triggerSystemAction) triggerSystemAction('open_file', { type: 'video', id: target.id });
+            } else {
+              newHistory.push({ text: `📄 Opening ${target.name} in Text Editor...`, type: "success" });
+              if (triggerSystemAction) triggerSystemAction('open_file', { type: 'file', id: target.id });
+            }
+            playCmdChime(true);
+          } else {
+            newHistory.push({ text: `Error: '${fileName}' not found in /${cwd}`, type: "error" });
+            playCmdChime(false);
+          }
+        }
+        break;
+      }
+
+      case 'game':
+        newHistory.push(
+          { text: "🏄 Launching Sunset Surfer...", type: "success" },
+          { text: "Controls: ↑/SPACE = Jump, ↓ = Duck, P = Pause", type: "info" }
+        );
+        if (triggerSystemAction) triggerSystemAction('open_game');
+        playCmdChime(true);
+        break;
 
       default:
         newHistory.push({ text: `command not found: ${command}. Type 'help' to review active console tools.`, type: "error" });
