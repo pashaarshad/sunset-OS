@@ -414,13 +414,31 @@ static int find_last_prompt_pos() {
 
 extern volatile unsigned int context_switches;
 
+// VESA FPS real-time diagnostic trackers
+static volatile unsigned int render_frames = 0;
+static unsigned int current_fps = 60;
+static unsigned int last_fps_ticks = 0;
+
 static void update_diagnostics() {
+    // Calculate live FPS using system ticks (100 ticks = 1000ms = 1 second)
+    if (system_ticks - last_fps_ticks >= 100) {
+        current_fps = render_frames;
+        render_frames = 0;
+        last_fps_ticks = system_ticks;
+    }
+
     memset(diag_buffer, 0, 512);
     memcpy(diag_buffer, "LAZ MULTITASKING KERNEL:\n", 25);
     memcpy(diag_buffer + mystrlen(diag_buffer), "- CPU Privilege: Ring 0 Core\n", 29);
     memcpy(diag_buffer + mystrlen(diag_buffer), "- Threading: Preemptive PIT\n", 29);
     memcpy(diag_buffer + mystrlen(diag_buffer), "- Slices: 10ms Round-Robin\n", 28);
     
+    memcpy(diag_buffer + mystrlen(diag_buffer), "- Video Output: ", 16);
+    char fps_str[16];
+    uint_to_str(current_fps, fps_str);
+    memcpy(diag_buffer + mystrlen(diag_buffer), fps_str, mystrlen(fps_str));
+    memcpy(diag_buffer + mystrlen(diag_buffer), " FPS (VESA 800x600)\n", 20);
+
     memcpy(diag_buffer + mystrlen(diag_buffer), "- System Ticks: ", 16);
     char tick_str[16];
     uint_to_str(system_ticks, tick_str);
@@ -433,10 +451,20 @@ static void update_diagnostics() {
     memcpy(diag_buffer + mystrlen(diag_buffer), switch_str, mystrlen(switch_str));
     memcpy(diag_buffer + mystrlen(diag_buffer), "\n", 1);
     
-    memcpy(diag_buffer + mystrlen(diag_buffer), "- Active Tasks: 3\n", 18);
-    memcpy(diag_buffer + mystrlen(diag_buffer), "  [1] Desktop GUI (Core)\n", 25);
-    memcpy(diag_buffer + mystrlen(diag_buffer), "  [2] System Monitor (Active)\n", 30);
-    memcpy(diag_buffer + mystrlen(diag_buffer), "  [3] Sakura Anim (Drifting)\n", 29);
+    memcpy(diag_buffer + mystrlen(diag_buffer), "- Active Tasks: ", 16);
+    // Count active tasks dynamically
+    int active_cnt = 0;
+    for (int t = 0; t < 8; t++) {
+        const char* t_name = 0;
+        int t_state = 0;
+        if (get_task_info(t, &t_name, &t_state) == 0 && t_state != 0) {
+            active_cnt++;
+        }
+    }
+    char active_str[16];
+    uint_to_str(active_cnt, active_str);
+    memcpy(diag_buffer + mystrlen(diag_buffer), active_str, mystrlen(active_str));
+    memcpy(diag_buffer + mystrlen(diag_buffer), "\n", 1);
 }
 
 // Task 2: Background System Diagnostics Update Thread
@@ -467,6 +495,67 @@ void sakura_anim_task() {
         // Store coordinates thread-safely
         global_sakura_x = sakura_x;
         global_sakura_y = sakura_y;
+    }
+}
+
+// Shimmering stars background state variables
+static volatile int star_x[15];
+static volatile int star_y[15];
+static volatile int star_bright[15];
+static volatile char stars_active = 0;
+
+// Periodic chimer state variable
+static volatile char chime_active = 0;
+
+// Wave oscillator state variables
+static volatile int wave_offset = 0;
+static volatile char waves_active = 0;
+
+// PIDs for spawned tasks
+static int stars_pid = -1;
+static int chime_pid = -1;
+static int waves_pid = -1;
+
+// Task 4: Twinkling background stars task
+void stars_task() {
+    stars_active = 1;
+    // Initialize coordinates pseudo-randomly
+    for (int i = 0; i < 15; i++) {
+        star_x[i] = 40 + (system_ticks * (i + 1) * 37) % 720;
+        star_y[i] = 30 + (system_ticks * (i + 2) * 59) % 200;
+        star_bright[i] = (i % 3) * 80 + 95;
+    }
+    
+    while (stars_active) {
+        sleep_ms(180);
+        for (int i = 0; i < 15; i++) {
+            // Cycle brightness to Twinkle
+            star_bright[i] = (star_bright[i] + 40);
+            if (star_bright[i] > 255) star_bright[i] = 95;
+        }
+    }
+}
+
+// Task 5: Periodic background speaker audio arpeggio chime task
+void chime_task() {
+    chime_active = 1;
+    while (chime_active) {
+        play_tone(523); sleep_ms(150); // C5
+        play_tone(659); sleep_ms(150); // E5
+        play_tone(784); sleep_ms(150); // G5
+        play_tone(1046); sleep_ms(250); // C6
+        stop_tone();
+        
+        sleep_ms(4000); // Wait 4 seconds between chimes
+    }
+}
+
+// Task 6: Dock wave oscillation task
+void waves_task() {
+    waves_active = 1;
+    while (waves_active) {
+        sleep_ms(40);
+        wave_offset = (wave_offset + 2) % 360;
     }
 }
 
@@ -505,6 +594,32 @@ static void clear_shell() {
 }
 
 static void append_to_shell(const char* str) {
+    int len = mystrlen(str);
+    // Circular scroll: if buffer is reaching capacity limit (1800 bytes)
+    if (shell_len + len >= 1800) {
+        // Locate a line boundary around 350 bytes into the buffer
+        int shift_offset = 0;
+        for (int i = 350; i < shell_len; i++) {
+            if (shell_buffer[i] == '\n') {
+                shift_offset = i + 1;
+                break;
+            }
+        }
+        if (shift_offset == 0) shift_offset = 350;
+        
+        // Shift remaining buffer contents back to the beginning
+        int remaining = shell_len - shift_offset;
+        for (int i = 0; i < remaining; i++) {
+            shell_buffer[i] = shell_buffer[shift_offset + i];
+        }
+        shell_len = remaining;
+        
+        // Zero out the remaining space
+        for (int i = shell_len; i < 2048; i++) {
+            shell_buffer[i] = 0;
+        }
+    }
+
     for (int i = 0; str[i] != '\0' && shell_len < 2000; i++) {
         shell_buffer[shell_len++] = str[i];
     }
@@ -1370,6 +1485,121 @@ void kernel_main(unsigned int* vesa_framebuffer) {
                     append_to_shell("\nLAZ Kernel — x86 Freestanding");
                     append_to_shell("\n");
                     append_prompt_to_shell();
+                } else if (sh_strncmp(cmd, "spawn ", 6) == 0) {
+                    const char* task_name = cmd + 6;
+                    while (*task_name == ' ') task_name++;
+                    
+                    if (sh_strcmp(task_name, "stars") == 0) {
+                        if (stars_active) {
+                            append_to_shell("\n[Error] stars_task is already active.\n");
+                        } else {
+                            stars_pid = create_task(stars_task, "stars_task");
+                            if (stars_pid >= 0) {
+                                append_to_shell("\n[OK] Spawned stars_task (PID: ");
+                                char p_str[16];
+                                uint_to_str(stars_pid, p_str);
+                                append_to_shell(p_str);
+                                append_to_shell(")\n");
+                            } else {
+                                append_to_shell("\n[Error] Failed to spawn stars_task.\n");
+                            }
+                        }
+                    } else if (sh_strcmp(task_name, "chime") == 0) {
+                        if (chime_active) {
+                            append_to_shell("\n[Error] chime_task is already active.\n");
+                        } else {
+                            chime_pid = create_task(chime_task, "chime_task");
+                            if (chime_pid >= 0) {
+                                append_to_shell("\n[OK] Spawned chime_task (PID: ");
+                                char p_str[16];
+                                uint_to_str(chime_pid, p_str);
+                                append_to_shell(p_str);
+                                append_to_shell(")\n");
+                            } else {
+                                append_to_shell("\n[Error] Failed to spawn chime_task.\n");
+                            }
+                        }
+                    } else if (sh_strcmp(task_name, "waves") == 0) {
+                        if (waves_active) {
+                            append_to_shell("\n[Error] waves_task is already active.\n");
+                        } else {
+                            waves_pid = create_task(waves_task, "waves_task");
+                            if (waves_pid >= 0) {
+                                append_to_shell("\n[OK] Spawned waves_task (PID: ");
+                                char p_str[16];
+                                uint_to_str(waves_pid, p_str);
+                                append_to_shell(p_str);
+                                append_to_shell(")\n");
+                            } else {
+                                append_to_shell("\n[Error] Failed to spawn waves_task.\n");
+                            }
+                        }
+                    } else {
+                        append_to_shell("\n[Error] Unknown background task. Presets: stars, chime, waves\n");
+                    }
+                    append_prompt_to_shell();
+                } else if (sh_strncmp(cmd, "kill ", 5) == 0) {
+                    const char* p_arg = cmd + 5;
+                    while (*p_arg == ' ') p_arg++;
+                    int slot = 0;
+                    while (*p_arg >= '0' && *p_arg <= '9') {
+                        slot = slot * 10 + (*p_arg - '0');
+                        p_arg++;
+                    }
+                    
+                    if (slot > 0 && slot < 8) {
+                        if (slot == stars_pid) { stars_active = 0; stars_pid = -1; }
+                        else if (slot == chime_pid) { chime_active = 0; chime_pid = -1; }
+                        else if (slot == waves_pid) { waves_active = 0; waves_pid = -1; }
+                        
+                        if (terminate_task(slot) == 0) {
+                            append_to_shell("\n[OK] Terminated task at slot PID: ");
+                            char p_str[16];
+                            uint_to_str(slot, p_str);
+                            append_to_shell(p_str);
+                            append_to_shell("\n");
+                        } else {
+                            append_to_shell("\n[Error] Failed to terminate task or task already dormant.\n");
+                        }
+                    } else {
+                        append_to_shell("\nUsage: kill [slot_id (1-7)]\n");
+                    }
+                    append_prompt_to_shell();
+                } else if (sh_strcmp(cmd, "ps") == 0) {
+                    append_to_shell("\nActive Preemptive Scheduled Tasks:\n");
+                    append_to_shell("PID   Name                 State\n");
+                    append_to_shell("------------------------------------");
+                    for (int slot = 0; slot < 8; slot++) {
+                        const char* t_name = 0;
+                        int t_state = 0;
+                        if (get_task_info(slot, &t_name, &t_state) == 0) {
+                            if (t_state != 0) { // TASK_STATE_DORMANT is 0
+                                append_to_shell("\n");
+                                char pid_str[8];
+                                uint_to_str(slot, pid_str);
+                                append_to_shell(pid_str);
+                                // Pad PID column
+                                int space_count = 6 - mystrlen(pid_str);
+                                while (space_count-- > 0) append_to_shell(" ");
+                                
+                                if (t_name) {
+                                    append_to_shell(t_name);
+                                    space_count = 21 - mystrlen(t_name);
+                                    while (space_count-- > 0) append_to_shell(" ");
+                                } else {
+                                    append_to_shell("Unnamed");
+                                    append_to_shell("              ");
+                                }
+                                
+                                // State
+                                if (t_state == 1) append_to_shell("READY");
+                                else if (t_state == 2) append_to_shell("RUNNING");
+                                else if (t_state == 3) append_to_shell("SLEEPING");
+                            }
+                        }
+                    }
+                    append_to_shell("\n");
+                    append_prompt_to_shell();
                 } else if (sh_strcmp(cmd, "panic") == 0) {
                     kpanic("USER TRIGGERED CORE EXCEPTION PANIC");
                 } else {
@@ -1474,6 +1704,20 @@ void kernel_main(unsigned int* vesa_framebuffer) {
             // 3. Clear offscreen back-buffer rendering sunset gradient
             draw_gradient(0);
 
+            // Render shimmering background stars
+            if (stars_active) {
+                for (int i = 0; i < 15; i++) {
+                    int bx = star_x[i];
+                    int by = star_y[i];
+                    unsigned char b = star_bright[i];
+                    draw_pixel(bx, by, b, b, b / 2);
+                    draw_pixel(bx - 1, by, b / 2, b / 2, b / 4);
+                    draw_pixel(bx + 1, by, b / 2, b / 2, b / 4);
+                    draw_pixel(bx, by - 1, b / 2, b / 2, b / 4);
+                    draw_pixel(bx, by + 1, b / 2, b / 2, b / 4);
+                }
+            }
+
             // Render a delicate 5x5 drifting cherry blossom/sakura petal in the background
             int sx = global_sakura_x;
             int sy = global_sakura_y;
@@ -1517,6 +1761,21 @@ void kernel_main(unsigned int* vesa_framebuffer) {
             }
 
             // 5. Draw visual bottom desktop floating DOCK & status widgets
+            
+            // Render oscillating waves above the dock if waves_active
+            if (waves_active) {
+                int wave_y = 536;
+                for (int x = 0; x < SCREEN_WIDTH; x += 4) {
+                    int angle = (x / 2 + wave_offset) % 360;
+                    int dy = 0;
+                    if (angle < 90) dy = (angle * 4) / 90;
+                    else if (angle < 270) dy = 4 - ((angle - 90) * 8) / 180;
+                    else dy = -4 + ((angle - 270) * 4) / 90;
+                    
+                    draw_pixel(x, wave_y + dy, 227, 133, 53);
+                    draw_pixel(x + 1, wave_y + dy, 227, 133, 53);
+                }
+            }
             
             // A. Left Frosted Status tag
             draw_rect(20, 547, 120, 38, 22, 18, 25);
@@ -1728,6 +1987,7 @@ void kernel_main(unsigned int* vesa_framebuffer) {
         }
 
         // 7. Flush offscreen 1.44 MB buffer to physical Linear Frame Buffer (LFB)
+        render_frames++;
         flush_buffer();
 
         // 8. Regulation delay

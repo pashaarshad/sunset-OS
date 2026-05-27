@@ -36,6 +36,7 @@ unsigned int schedule(unsigned int current_esp);
 void sys_yield();
 void scheduler_sleep(unsigned int ticks);
 int terminate_task(int slot);
+int get_task_info(int slot, const char** name, int* state);
 
 // Atomic Mutex synchronization APIs
 void mutex_lock(mutex_t* mtx);

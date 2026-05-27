@@ -178,3 +178,36 @@ void mutex_lock(mutex_t* mtx) {
 void mutex_unlock(mutex_t* mtx) {
     __sync_lock_release(&mtx->locked);
 }
+
+// Safely terminate a running task by slot index
+int terminate_task(int slot) {
+    if (slot <= 0 || slot >= MAX_TASKS) {
+        return -1; // Cannot terminate Task 0 (Desktop GUI) or invalid slot
+    }
+    if (task_list[slot].state == TASK_STATE_DORMANT) {
+        return -1; // Task already dormant
+    }
+
+    // Critical block: Disable interrupts while modifying task state
+    __asm__ volatile("cli");
+    task_list[slot].state = TASK_STATE_DORMANT;
+    task_list[slot].sleep_ticks = 0;
+    task_list[slot].name = 0;
+    
+    // Clear stack memory footprint
+    for (int i = 0; i < STACK_SIZE; i++) {
+        task_list[slot].stack[i] = 0;
+    }
+    task_list[slot].esp = 0;
+    __asm__ volatile("sti");
+
+    return 0;
+}
+
+// Retrieve info about a task slot for diagnostic display
+int get_task_info(int slot, const char** name, int* state) {
+    if (slot < 0 || slot >= MAX_TASKS) return -1;
+    *name = task_list[slot].name;
+    *state = (int)task_list[slot].state;
+    return 0;
+}
