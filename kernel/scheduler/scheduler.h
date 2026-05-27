@@ -7,7 +7,7 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
-#define MAX_TASKS 5
+#define MAX_TASKS 8
 #define STACK_SIZE 16384 // 16 KB stack per task
 
 typedef enum {
@@ -35,6 +35,7 @@ int create_task(void (*entry_point)(), const char* name);
 unsigned int schedule(unsigned int current_esp);
 void sys_yield();
 void scheduler_sleep(unsigned int ticks);
+int terminate_task(int slot);
 
 // Atomic Mutex synchronization APIs
 void mutex_lock(mutex_t* mtx);
