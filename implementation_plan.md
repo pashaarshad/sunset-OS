@@ -136,6 +136,75 @@ graph TD
 
 ### Manual Verification
 1. **C-Kernel Tab-Switching Test**:
+   - Click on the Terminal 2 tab or press `F2` in QEMU. Verify that Terminal 2 opens, showing- Open the System Diagnostics window and check the Video Card Output entry. Verify that it logs a high-performance rendering output (approx. 30–60 FPS inside the emulator).
+
+---
+
+# 🌅 Sunset OS — Long-Term Multi-OS Compatibility, Security & Performance Spec
+
+Sunset OS is engineered to provide a serene user space while fundamentally challenging established OS models (Windows, macOS/iOS, Linux). We specify a triple-pillar architecture to achieve universal app execution, micro-segmented security, and predictive preemption.
+
+---
+
+## Architectural Pillar 1: Universal Installer & Multi-OS Runtime
+
+Sunset OS features a native **Universal Application Installer Engine (UAIE)**. Unlike traditional operating systems which are locked into a single binary format and API set, Sunset OS provides a multi-OS translation layer directly inside the LAZ Kernel.
+
+```mermaid
+graph TD
+    A[Windows .exe / .msi] -->|PE Decoder| B[Dynamic System Call Translator]
+    C[Linux ELF / .deb] -->|ELF Decoder| B
+    D[macOS .dmg / Mach-O] -->|Mach-O Decoder| B
+    B -->|Translates to Ring 0 system calls| E[LAZ Kernel Core]
+    E -->|Secure Sandboxed Execution| F[Sunset OS Desktop GUI]
+```
+
+### Subsystems Specification:
+1. **Dynamic System Call Translation Layer (DSCTL)**:
+   - Intercepts Win32 API calls (Windows), POSIX system calls (Linux), and Darwin/Mach APIs (macOS) at runtime.
+   - Translates them on-the-fly to secure, high-performance, native LAZ Kernel system calls without virtual machines or emulators (achieving zero-performance loss).
+2. **Multi-Format Executable Decoders**:
+   - Compiles decoders for the three core file structures:
+     - **PE/COFF** (Windows)
+     - **ELF** (Linux)
+     - **Mach-O** (macOS)
+   - Decodes header segments, relocates segment addresses, and securely binds symbol tables to native Sunset OS runtimes contextually.
+3. **Abstract Unified Installer**:
+   - The user opens any installer file (e.g. `installer.msi`, `installer.deb`, or `installer.dmg`).
+   - The OS decodes the metadata, extracts resource files, builds sandboxed bundles, and creates a unified launch shortcut instantly on the Bottom Dock.
+
+---
+
+## Architectural Pillar 2: Micro-Segmented Supreme Security
+
+Sunset OS implements a security system designed to be fundamentally more robust than iOS and Linux:
+
+### Key Security Standards:
+1. **The "No Root Privilege" Concept (Fine-Grained Capabilities)**:
+   - Traditional Linux and macOS/iOS suffer from absolute administrative account vulnerabilities (e.g., `root`, `sudo`, `Administrator`). If `root` is compromised, the entire system is breached.
+   - Sunset OS has **no superuser**. Privilege is entirely token-based and granular. If an application (or even a system driver) requires disk access or network execution, it must present a cryptographically signed capability token validated dynamically by the kernel at the individual request level.
+2. **Double-Enclave Virtual Sandboxing**:
+   - Every foreign application (Windows, Linux, macOS) runs in a strict Ring 3 memory sandbox.
+   - Applications are completely isolated from keyboard buffers, VESA framebuffer memory, and sound channels unless they communicate via standard, encrypted system gates.
+3. **AES-XTS Cryptographic Virtual File System (VFS)**:
+   - Scale the C-kernel's memory storage to support automatic transparent disk segment encryption. All written files are automatically encrypted in physical RAM/disk sectors.
+
+---
+
+## Architectural Pillar 3: Well-Mannered, High-Performance Scheduler
+
+To achieve maximum efficiency, lightweight operations, and fast boot times:
+1. **Predictive Preemptive Scheduling**:
+   - The scheduler runs on dynamic, context-aware context switching.
+   - The CPU enters standard low-power `hlt` states during inactivity, eliminating clock cycle waste and heat.
+   - The active focus window is allocated high-priority scheduler slices, while background windows are instantly suspended or run in cooperative low-priority blocks.
+2. **Basic Functional Operations**:
+   - Real-time file system actions (open, close, read, write) are fully integrated for all media types (images, videos, audio, documents) inside the VFS RAM disk, supporting quick launch and exit.
+
+---
+
+### Manual Verification (Continued)
+1. **C-Kernel Tab-Switching Test**:
    - Click on the Terminal 2 tab or press `F2` in QEMU. Verify that Terminal 2 opens, showing its distinct diagnostics welcome message and a separate prompt.
    - Run a command in Terminal 2 (e.g., `lofi 2`), then press `F1` to return to Terminal 1. Verify Terminal 1's history and active command prompt are fully preserved!
 2. **Low-level Nested Directory Walking**:
